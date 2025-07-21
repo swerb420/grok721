@@ -15,6 +15,7 @@ import datetime
 import sqlite3
 import logging
 import random
+import requests
 from typing import Any, Callable, List
 from dataclasses import dataclass
 
@@ -186,11 +187,7 @@ def store_tweet(conn: sqlite3.Connection, item: dict) -> TweetData:
 
     sentiment = sentiment_analyzer(tweet.text[:512])[0]
     vibe_score, vibe_label = compute_vibe(
-        sentiment["label"],
-        sentiment["score"],
-        tweet.likes,
-        tweet.retweets,
-        tweet.replies,
+        sentiment["label"], sentiment["score"], tweet.likes, tweet.retweets, tweet.replies
     )
 
     cur.execute(
