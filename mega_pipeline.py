@@ -38,9 +38,9 @@ from edgar import Company, Filing  # For SEC EDGAR; pip install python-edgar
 from noaa_sdk import NOAA  # For NOAA; pip install noaa-sdk
 from github import Github  # For GitHub; pip install PyGithub
 import eodhd  # For EOD; pip install eodhd
-import twelve_data  # For Twelve Data; pip install twelve-data
-import dukascopy  # Custom or pydukascopy; assume pip install pydukascopy
-import barchart  # For Barchart; pip install barchart-ondemand-client
+from twelvedata import TDClient  # For Twelve Data; pip install twelvedata
+import pydukascopy  # For Dukascopy; pip install pydukascopy
+import barchart_ondemand  # For Barchart; pip install barchart-ondemand-client-python
 from fmp_python.fmp import FMP  # For Financial Modeling Prep; pip install fmp-python
 from openexchangerates import OpenExchangeRates  # For Open Exchange Rates; pip install openexchangerates
 
@@ -64,7 +64,7 @@ NEWSAPI_KEY = "YOUR_NEWSAPI_KEY_HERE"  # From newsapi.org
 OPENEXCHANGE_KEY = "YOUR_OPENEXCHANGE_KEY_HERE"  # Free at openexchangerates.org
 GITHUB_TOKEN = "YOUR_GITHUB_TOKEN_HERE"  # Optional for higher limits
 FMP_KEY = "YOUR_FMP_KEY_HERE"  # Free at financialmodelingprep.com
-eodhd_KEY = "YOUR_EODHD_KEY_HERE"  # Free at eodhistoricaldata.com
+EODHD_KEY = "YOUR_EODHD_KEY_HERE"  # Free at eodhistoricaldata.com
 TWELVE_DATA_KEY = "YOUR_TWELVE_DATA_KEY_HERE"  # Free at twelvedata.com
 BARCHART_KEY = "YOUR_BARCHART_KEY_HERE"  # Free at barchart.com/ondemand
 DB_FILE = "super_db.db"
@@ -97,6 +97,11 @@ SEC_COMPANIES = ['Tesla Inc', 'MicroStrategy Inc', 'Coinbase Global Inc', 'Riot 
 INVESTING_COMMODITIES = ['gold', 'crude-oil', 'natural-gas', 'silver', 'copper', 'corn', 'soybeans', 'wheat', 'coffee', 'sugar']  # For Investing scrape
 CENSUS_SERIES = ['RETAIL', 'HOUSING', 'POP']  # Census endpoints
 OSM_QUERIES = ['crypto conference', 'blockchain summit', 'bitcoin meetup']  # For OSM
+FMP_SYMBOLS = ['AAPL', 'TSLA', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'BRK-B', 'V', 'JPM', 'UNH', 'MA', 'HD', 'PG', 'DIS', 'VZ', 'KO', 'PEP', 'WMT', 'CVX']
+EODHD_TICKERS = ['AAPL.US', 'TSLA.US', 'MSFT.US', 'NVDA.US', 'GOOGL.US', 'AMZN.US', 'META.US', 'BRK-B.US', 'V.US', 'JPM.US', 'BTC-USD.CRYPTO', 'ETH-USD.CRYPTO', 'SOL-USD.CRYPTO', 'XRP-USD.CRYPTO', 'ADA-USD.CRYPTO']
+TWELVE_DATA_SYMBOLS = ['AAPL', 'TSLA', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'BRK.B', 'V', 'JPM', 'BTC/USD', 'ETH/USD', 'SOL/USD', 'XRP/USD', 'ADA/USD', 'EUR/USD', 'USD/JPY', 'GBP/USD', 'AUD/USD', 'USD/CAD']
+DUKASCOPY_PAIRS = ['EURUSD', 'USDJPY', 'GBPUSD', 'AUDUSD', 'USDCAD', 'NZDUSD', 'USDCHF', 'EURGBP', 'EURJPY', 'GBPJPY', 'XAUUSD', 'XAGUSD', 'WTI', 'BRENT', 'NGAS']
+BARCHART_SYMBOLS = ['ZC*1', 'ZS*1', 'ZW*1', 'KE*1', 'HE*1', 'LE*1', 'GF*1', 'ES*1', 'NQ*1', 'YM*1', 'GC*1', 'SI*1', 'HG*1', 'CL*1', 'NG*1']
 
 # ML Models with hyperparam tuning setup
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=0 if os.name != 'posix' else -1)
@@ -195,6 +200,151 @@ def ingest_alpha_vantage_economic(conn):
 
 # Similar for all other ingests, with specific params, cleaning, etc.
 
+
+# Advanced functions with max value: detailed fetching, cleaning, enrichment, parallel processing, error recovery
+
+def ingest_financial_modeling_prep(conn):
+    fmp = FMP(api_key=FMP_KEY)
+    for symbol in FMP_SYMBOLS:
+        try:
+            historical = fmp.get_historical_price(symbol, start_date=HISTORICAL_START, end_date=datetime.datetime.now().strftime('%Y-%m-%d'))
+            fundamentals = fmp.get_financial_statements(symbol, yearly=True)
+            earnings = fmp.get_earnings_calendar(symbol)
+            df_hist = pd.DataFrame(historical)
+            df_fund = pd.DataFrame(fundamentals)
+            df_earn = pd.DataFrame(earnings)
+            # Clean and enrich
+            df_hist['date'] = pd.to_datetime(df_hist['date']).dt.isoformat()
+            df_hist = df_hist.dropna(subset=['close', 'volume']).sort_values('date').drop_duplicates('date')
+            df_hist['adjusted_close'] = df_hist['close'] * (1 + df_hist['changePercent'] / 100)
+            df_hist['market_cap'] = df_hist['close'] * df_hist.get('sharesOutstanding', 1)
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df_hist.iterrows():
+                    cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (symbol, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'stock', row['adjusted_close'], row['market_cap']))
+            df_fund['date'] = pd.to_datetime(df_fund['date']).dt.isoformat()
+            df_fund = df_fund.dropna(subset=['revenue', 'netIncome']).sort_values('date')
+            for _, row in df_fund.iterrows():
+                cur.execute("INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (f"{symbol}_revenue", row['date'], row['revenue'], 'fmp_fundamentals', 'USD', 'US', 'quarterly'))
+                cur.execute("INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (f"{symbol}_net_income", row['date'], row['netIncome'], 'fmp_fundamentals', 'USD', 'US', 'quarterly'))
+            df_earn['date'] = pd.to_datetime(df_earn['date']).dt.isoformat()
+            df_earn = df_earn.dropna(subset=['epsEstimated', 'eps']).sort_values('date')
+            for _, row in df_earn.iterrows():
+                cur.execute("INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (f"{symbol}_eps_surprise", row['date'], row['eps'] - row['epsEstimated'], 'fmp_earnings', 'USD', 'US', 'quarterly'))
+            conn.commit()
+            logging.info(f"Ingested, cleaned, enriched {len(df_hist)} hist, {len(df_fund)} fund, {len(df_earn)} earnings for FMP {symbol}")
+        except Exception as e:
+            logging.error(f"FMP ingest error for {symbol}: {e}")
+        time.sleep(1)
+
+def ingest_eod_historical(conn):
+    eod = eodhd.EODHD(EODHD_KEY)
+    for ticker in EODHD_TICKERS:
+        try:
+            historical = eod.get_historical_data(ticker, start=HISTORICAL_START, end=datetime.datetime.now().strftime('%Y-%m-%d'), interval='d')
+            fundamentals = eod.get_fundamentals(ticker)
+            intraday = eod.get_intraday_data(ticker, interval='1m', count=5000)
+            df_hist = pd.DataFrame(historical)
+            df_fund = pd.DataFrame([fundamentals]) if isinstance(fundamentals, dict) else pd.DataFrame(fundamentals)
+            df_intra = pd.DataFrame(intraday)
+            df_hist['date'] = pd.to_datetime(df_hist['date']).dt.isoformat()
+            df_hist = df_hist.dropna(subset=['close', 'volume']).sort_values('date').drop_duplicates('date')
+            df_hist['adjusted_close'] = df_hist['close'] * df_hist.get('adjustment_factor', 1)
+            df_hist['market_cap'] = df_hist['close'] * df_hist.get('shares_outstanding', 1)
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df_hist.iterrows():
+                    cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (ticker, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'mixed', row['adjusted_close'], row['market_cap']))
+            for key, value in fundamentals.items():
+                if isinstance(value, (int, float)):
+                    cur.execute("INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                (f"{ticker}_{key}", datetime.datetime.now().isoformat(), value, 'eod_fundamentals', 'various', 'global', 'current'))
+            df_intra['date'] = pd.to_datetime(df_intra['timestamp']).dt.isoformat()
+            df_intra = df_intra.dropna(subset=['close']).sort_values('date')
+            for _, row in df_intra.iterrows():
+                cur.execute("INSERT OR REPLACE INTO prices (ticker, date, close, volume, type) VALUES (?, ?, ?, ?, ?)",
+                            (ticker, row['date'], row['close'], row['volume'], 'intraday'))
+            conn.commit()
+            logging.info(f"Ingested, enriched {len(df_hist)} daily, {len(df_fund.columns)} fund, {len(df_intra)} intraday for EOD {ticker}")
+        except Exception as e:
+            logging.error(f"EOD ingest error for {ticker}: {e}")
+        time.sleep(0.5)
+
+def ingest_twelve_data(conn):
+    td = TDClient(apikey=TWELVE_DATA_KEY)
+    for symbol in TWELVE_DATA_SYMBOLS:
+        try:
+            time_series = td.time_series(symbol=symbol, interval='1day', start_date=HISTORICAL_START, end_date=datetime.datetime.now().strftime('%Y-%m-%d'), outputsize=5000).as_pandas()
+            fundamentals = td.fundamentals(symbol=symbol).as_pandas()
+            quote = td.quote(symbol=symbol).as_dict()
+            df_ts = time_series.reset_index()
+            df_fund = fundamentals.reset_index() if not fundamentals.empty else pd.DataFrame()
+            df_ts['date'] = pd.to_datetime(df_ts['datetime']).dt.isoformat()
+            df_ts = df_ts.dropna(subset=['close', 'volume']).sort_values('date').drop_duplicates('date')
+            df_ts['adjusted_close'] = df_ts['close']
+            df_ts['market_cap'] = df_ts['close'] * quote.get('fifty_two_week_high', 1)
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df_ts.iterrows():
+                    cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (symbol, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'mixed', row['close'], row['market_cap']))
+            if not df_fund.empty:
+                df_fund['date'] = pd.to_datetime(df_fund['reportDate']).dt.isoformat() if 'reportDate' in df_fund.columns else datetime.datetime.now().isoformat()
+                for _, row in df_fund.iterrows():
+                    for key in ['eps', 'revenue', 'netIncome', 'ebitda']:
+                        if key in row:
+                            cur.execute("INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                        (f"{symbol}_{key}", row['date'], row[key], 'twelve_fundamentals', 'USD', 'global', 'quarterly'))
+            conn.commit()
+            logging.info(f"Ingested, enriched {len(df_ts)} time series, {len(df_fund)} fundamentals for Twelve Data {symbol}")
+        except Exception as e:
+            logging.error(f"Twelve Data ingest error for {symbol}: {e}")
+        time.sleep(1.5)
+
+def ingest_dukascopy(conn):
+    for pair in DUKASCOPY_PAIRS:
+        try:
+            df = pydukascopy.get_historical_data(pair, from_date=HISTORICAL_START, to_date=datetime.datetime.now().strftime('%Y-%m-%d'), timeframe='D1')
+            df = df.dropna(subset=['Close', 'Volume']).sort_values('Timestamp').drop_duplicates('Timestamp')
+            df['date'] = pd.to_datetime(df['Timestamp']).dt.isoformat()
+            df['adjusted_close'] = df['Close']
+            df['market_cap'] = np.nan
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df.iterrows():
+                    cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (pair, row['date'], row['Open'], row['High'], row['Low'], row['Close'], row['Volume'], 'forex', row['adjusted_close'], row['market_cap']))
+            conn.commit()
+            logging.info(f"Ingested, enriched {len(df)} for Dukascopy {pair}")
+        except Exception as e:
+            logging.error(f"Dukascopy ingest error for {pair}: {e}")
+        time.sleep(3)
+
+def ingest_barchart(conn):
+    client = barchart_ondemand.BarchartOnDemandClient(api_key=BARCHART_KEY, endpoint='https://ondemand.websol.barchart.com')
+    for symbol in BARCHART_SYMBOLS:
+        try:
+            historical = client.get_history(symbol, type='daily', start=HISTORICAL_START, maxRecords=10000, order='asc', interval=1)
+            df = pd.DataFrame(historical['results'])
+            df = df.dropna(subset=['close', 'volume']).sort_values('timestamp').drop_duplicates('timestamp')
+            df['date'] = pd.to_datetime(df['timestamp']).dt.isoformat()
+            df['adjusted_close'] = df['close']
+            df['market_cap'] = np.nan
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df.iterrows():
+                    cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (symbol, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'futures', row['adjusted_close'], row['market_cap']))
+            conn.commit()
+            logging.info(f"Ingested, enriched {len(df)} for Barchart {symbol}")
+        except Exception as e:
+            logging.error(f"Barchart ingest error for {symbol}: {e}")
+        time.sleep(2)
 # main with max concurrency, error recovery
 def main():
     client = ApifyClient(APIFY_TOKEN, max_retries=5, timeout_secs=300)
