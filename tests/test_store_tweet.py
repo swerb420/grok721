@@ -2,6 +2,7 @@ import sys
 import types
 import importlib
 import pytest
+from utils import compute_vibe
 
 # Provide lightweight stubs so that the main module can be imported without
 # optional third party packages installed in the test environment.
@@ -79,7 +80,7 @@ def test_store_tweet_inserts(monkeypatch):
     assert row[2] == "great news"
     assert row[3] == "POSITIVE"
     assert row[4] == 0.5
-    expected_vibe, expected_label = main.compute_vibe("POSITIVE", 0.5, 10, 2, 1)
+    expected_vibe, expected_label = compute_vibe("POSITIVE", 0.5, 10, 2, 1)
     assert pytest.approx(row[5]) == expected_vibe
     assert row[6] == expected_label
 

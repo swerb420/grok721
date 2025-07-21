@@ -1,9 +1,9 @@
 import pytest
 
 try:
-    from main import compute_vibe
-except Exception:  # pragma: no cover - optional deps may not be installed
-    pytest.skip("main module requires optional dependencies", allow_module_level=True)
+    from utils import compute_vibe
+except Exception:  # pragma: no cover - should always be available
+    pytest.skip("utils module missing", allow_module_level=True)
 
 
 def test_compute_vibe_positive():
