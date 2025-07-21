@@ -1,4 +1,4 @@
-"""Configuration helpers for environment-based settings."""
+"""Helper for retrieving configuration settings from environment variables."""
 
 import os
 from typing import Optional

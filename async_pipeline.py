@@ -46,8 +46,14 @@ async def init_db() -> sqlite3.Connection:
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, max=10))
-async def fetch_json(session: ClientSession, url: str, method: str = "get", **kwargs) -> dict:
-    async with getattr(session, method)(url, **kwargs) as resp:
+async def fetch_json(
+    session: ClientSession,
+    url: str,
+    method: str = "get",
+    timeout: int = 30,
+    **kwargs,
+) -> dict:
+    async with getattr(session, method)(url, timeout=timeout, **kwargs) as resp:
         resp.raise_for_status()
         return await resp.json()
 
