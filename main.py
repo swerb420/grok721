@@ -42,7 +42,10 @@ USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
 MAX_TWEETS_PER_USER = 1000
 MAX_RETRIES = 5
 BASE_BACKOFF = 1
-HISTORICAL_START = "2020-01-01"
+HISTORICAL_START = "2017-01-01"
+# Minute-level data is only stored for recent history to save space
+HISTORICAL_MINUTE_START = "2022-01-01"
+MINUTE_VALUABLE_SOURCES = ["eodhd", "twelve_data", "dukascopy", "barchart"]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -129,6 +132,19 @@ def init_db() -> sqlite3.Connection:
             analysis TEXT,
             approved BOOLEAN,
             source TEXT DEFAULT 'twitter'
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS high_res_prices (
+            ticker TEXT,
+            date TEXT,
+            close REAL,
+            volume REAL,
+            volatility REAL,
+            momentum REAL,
+            PRIMARY KEY (ticker, date)
         )
         """
     )

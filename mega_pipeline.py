@@ -76,7 +76,9 @@ MAX_TWEETS_PER_USER = 10000
 MAX_RETRIES = 10  # Increased
 BASE_BACKOFF = 1
 INCREMENTAL = False  # For max data, fetch historical
-HISTORICAL_START = "2015-01-01"  # Deeper
+HISTORICAL_START = "2017-01-01"  # 8 years of data
+HISTORICAL_MINUTE_START = "2022-01-01"
+MINUTE_VALUABLE_SOURCES = ["eodhd", "twelve_data", "dukascopy", "barchart"]
 CREDIT_THRESHOLD = 0.8
 MONTHLY_CREDITS = 49.0
 WALLETS = ['0xexample_whale1', '0xexample_whale2']  # Add tracked wallets, dynamically expanded
@@ -113,6 +115,18 @@ fintwit_model = AutoModelForSequenceClassification.from_pretrained("StephanAkker
 
 # Lock for DB concurrency
 db_lock = threading.Lock()
+
+def fetch_with_fallback(func, **kwargs):
+    """Attempt minute resolution then fall back to coarser intervals."""
+    try:
+        return func(interval='1m', **kwargs)
+    except Exception as e:
+        logging.warning("Minute fetch failed: %s", e)
+        try:
+            return func(interval='5m', **kwargs)
+        except Exception as e2:
+            logging.warning("5m fetch failed: %s", e2)
+            return func(interval='1h', **kwargs)
 
 def compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies):
     likes, retweets, replies = map(lambda x: x if x is not None and x >= 0 else 0, [likes, retweets, replies])
@@ -163,6 +177,18 @@ def init_db():
         )
     ''')
     cur.execute('CREATE INDEX IF NOT EXISTS idx_tweets_multi ON tweets (created_at DESC, username, source, sentiment_label);')  # Compound index
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS high_res_prices (
+            ticker TEXT,
+            date TEXT,
+            close REAL,
+            volume REAL,
+            volatility REAL,
+            momentum REAL,
+            PRIMARY KEY (ticker, date)
+        )
+    ''')
+    cur.execute('CREATE INDEX IF NOT EXISTS idx_high_res_date_ticker ON high_res_prices (date DESC, ticker);')
     # All other tables with similar max expansion and indices
     conn.commit()
     return conn
@@ -246,9 +272,9 @@ def ingest_eod_historical(conn):
     eod = eodhd.EODHD(EODHD_KEY)
     for ticker in EODHD_TICKERS:
         try:
-            historical = eod.get_historical_data(ticker, start=HISTORICAL_START, end=datetime.datetime.now().strftime('%Y-%m-%d'), interval='d')
+            historical = eod.get_historical_data(ticker, start=HISTORICAL_START, end=datetime.datetime.now().strftime('%Y-%m-%d'))
             fundamentals = eod.get_fundamentals(ticker)
-            intraday = eod.get_intraday_data(ticker, interval='1m', count=5000)
+            intraday = fetch_with_fallback(eod.get_intraday_data, ticker=ticker, count=5000, start_date=HISTORICAL_MINUTE_START)
             df_hist = pd.DataFrame(historical)
             df_fund = pd.DataFrame([fundamentals]) if isinstance(fundamentals, dict) else pd.DataFrame(fundamentals)
             df_intra = pd.DataFrame(intraday)
@@ -267,9 +293,13 @@ def ingest_eod_historical(conn):
                                 (f"{ticker}_{key}", datetime.datetime.now().isoformat(), value, 'eod_fundamentals', 'various', 'global', 'current'))
             df_intra['date'] = pd.to_datetime(df_intra['timestamp']).dt.isoformat()
             df_intra = df_intra.dropna(subset=['close']).sort_values('date')
+            df_intra['volatility'] = df_intra['close'].rolling(window=60).std()
+            df_intra['momentum'] = df_intra['close'].diff()
             for _, row in df_intra.iterrows():
                 cur.execute("INSERT OR REPLACE INTO prices (ticker, date, close, volume, type) VALUES (?, ?, ?, ?, ?)",
                             (ticker, row['date'], row['close'], row['volume'], 'intraday'))
+                cur.execute("INSERT OR REPLACE INTO high_res_prices (ticker, date, close, volume, volatility, momentum) VALUES (?, ?, ?, ?, ?, ?)",
+                            (ticker, row['date'], row['close'], row['volume'], row['volatility'], row['momentum']))
             conn.commit()
             logging.info(f"Ingested, enriched {len(df_hist)} daily, {len(df_fund.columns)} fund, {len(df_intra)} intraday for EOD {ticker}")
         except Exception as e:
@@ -280,7 +310,8 @@ def ingest_twelve_data(conn):
     td = TDClient(apikey=TWELVE_DATA_KEY)
     for symbol in TWELVE_DATA_SYMBOLS:
         try:
-            time_series = td.time_series(symbol=symbol, interval='1day', start_date=HISTORICAL_START, end_date=datetime.datetime.now().strftime('%Y-%m-%d'), outputsize=5000).as_pandas()
+            time_series = fetch_with_fallback(td.time_series, symbol=symbol, start_date=HISTORICAL_MINUTE_START, end_date=datetime.datetime.now().strftime('%Y-%m-%d'), outputsize=5000)
+            time_series = time_series.as_pandas()
             fundamentals = td.fundamentals(symbol=symbol).as_pandas()
             quote = td.quote(symbol=symbol).as_dict()
             df_ts = time_series.reset_index()
@@ -289,11 +320,15 @@ def ingest_twelve_data(conn):
             df_ts = df_ts.dropna(subset=['close', 'volume']).sort_values('date').drop_duplicates('date')
             df_ts['adjusted_close'] = df_ts['close']
             df_ts['market_cap'] = df_ts['close'] * quote.get('fifty_two_week_high', 1)
+            df_ts['volatility'] = df_ts['close'].rolling(window=60).std()
+            df_ts['momentum'] = df_ts['close'].diff()
             with db_lock:
                 cur = conn.cursor()
                 for _, row in df_ts.iterrows():
                     cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                 (symbol, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'mixed', row['close'], row['market_cap']))
+                    cur.execute("INSERT OR REPLACE INTO high_res_prices (ticker, date, close, volume, volatility, momentum) VALUES (?, ?, ?, ?, ?, ?)",
+                                (symbol, row['date'], row['close'], row['volume'], row['volatility'], row['momentum']))
             if not df_fund.empty:
                 df_fund['date'] = pd.to_datetime(df_fund['reportDate']).dt.isoformat() if 'reportDate' in df_fund.columns else datetime.datetime.now().isoformat()
                 for _, row in df_fund.iterrows():
@@ -310,16 +345,23 @@ def ingest_twelve_data(conn):
 def ingest_dukascopy(conn):
     for pair in DUKASCOPY_PAIRS:
         try:
-            df = pydukascopy.get_historical_data(pair, from_date=HISTORICAL_START, to_date=datetime.datetime.now().strftime('%Y-%m-%d'), timeframe='D1')
+            try:
+                df = pydukascopy.get_historical_data(pair, from_date=HISTORICAL_MINUTE_START, to_date=datetime.datetime.now().strftime('%Y-%m-%d'), timeframe='M1')
+            except Exception:
+                df = pydukascopy.get_historical_data(pair, from_date=HISTORICAL_MINUTE_START, to_date=datetime.datetime.now().strftime('%Y-%m-%d'), timeframe='M5')
             df = df.dropna(subset=['Close', 'Volume']).sort_values('Timestamp').drop_duplicates('Timestamp')
             df['date'] = pd.to_datetime(df['Timestamp']).dt.isoformat()
             df['adjusted_close'] = df['Close']
             df['market_cap'] = np.nan
+            df['volatility'] = df['Close'].rolling(window=60).std()
+            df['momentum'] = df['Close'].diff()
             with db_lock:
                 cur = conn.cursor()
                 for _, row in df.iterrows():
                     cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                 (pair, row['date'], row['Open'], row['High'], row['Low'], row['Close'], row['Volume'], 'forex', row['adjusted_close'], row['market_cap']))
+                    cur.execute("INSERT OR REPLACE INTO high_res_prices (ticker, date, close, volume, volatility, momentum) VALUES (?, ?, ?, ?, ?, ?)",
+                                (pair, row['date'], row['Close'], row['Volume'], row['volatility'], row['momentum']))
             conn.commit()
             logging.info(f"Ingested, enriched {len(df)} for Dukascopy {pair}")
         except Exception as e:
@@ -330,17 +372,24 @@ def ingest_barchart(conn):
     client = barchart_ondemand.BarchartOnDemandClient(api_key=BARCHART_KEY, endpoint='https://ondemand.websol.barchart.com')
     for symbol in BARCHART_SYMBOLS:
         try:
-            historical = client.get_history(symbol, type='daily', start=HISTORICAL_START, maxRecords=10000, order='asc', interval=1)
+            try:
+                historical = client.get_history(symbol, type='intraday', start=HISTORICAL_MINUTE_START, maxRecords=10000, order='asc', interval=1)
+            except Exception:
+                historical = client.get_history(symbol, type='intraday', start=HISTORICAL_MINUTE_START, maxRecords=10000, order='asc', interval=5)
             df = pd.DataFrame(historical['results'])
             df = df.dropna(subset=['close', 'volume']).sort_values('timestamp').drop_duplicates('timestamp')
             df['date'] = pd.to_datetime(df['timestamp']).dt.isoformat()
             df['adjusted_close'] = df['close']
             df['market_cap'] = np.nan
+            df['volatility'] = df['close'].rolling(window=60).std()
+            df['momentum'] = df['close'].diff()
             with db_lock:
                 cur = conn.cursor()
                 for _, row in df.iterrows():
                     cur.execute("INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                 (symbol, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'futures', row['adjusted_close'], row['market_cap']))
+                    cur.execute("INSERT OR REPLACE INTO high_res_prices (ticker, date, close, volume, volatility, momentum) VALUES (?, ?, ?, ?, ?, ?)",
+                                (symbol, row['date'], row['close'], row['volume'], row['volatility'], row['momentum']))
             conn.commit()
             logging.info(f"Ingested, enriched {len(df)} for Barchart {symbol}")
         except Exception as e:
