@@ -1,11 +1,19 @@
 """Utility functions used across pipeline scripts."""
-from typing import Tuple
+from typing import Tuple, Optional
 
 
-def compute_vibe(sentiment_label: str, sentiment_score: float,
-                 likes: int, retweets: int, replies: int) -> Tuple[float, str]:
+def compute_vibe(
+    sentiment_label: str,
+    sentiment_score: float,
+    likes: Optional[int],
+    retweets: Optional[int],
+    replies: Optional[int],
+) -> Tuple[float, str]:
     """Compute a simplified vibe score from sentiment and engagement."""
-    engagement = (likes + retweets * 2 + replies) / 1000.0 if likes is not None else 0
+    likes = max(likes or 0, 0)
+    retweets = max(retweets or 0, 0)
+    replies = max(replies or 0, 0)
+    engagement = (likes + retweets * 2 + replies) / 1000.0
     base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
     vibe_score = (base_score + engagement) * 5
     vibe_score = min(max(vibe_score, 0), 10)
