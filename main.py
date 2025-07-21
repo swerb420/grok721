@@ -184,9 +184,13 @@ def store_tweet(conn: sqlite3.Connection, item: dict) -> TweetData:
     )
     media_json = json.dumps(tweet.media)
 
-    sentiment = sentiment_analyzer(text[:512])[0]
+    sentiment = sentiment_analyzer(tweet.text[:512])[0]
     vibe_score, vibe_label = compute_vibe(
-        sentiment["label"], sentiment["score"], likes, retweets, replies
+        sentiment["label"],
+        sentiment["score"],
+        tweet.likes,
+        tweet.retweets,
+        tweet.replies,
     )
 
     cur.execute(
