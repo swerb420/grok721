@@ -65,7 +65,9 @@ MAX_TWEETS_PER_USER = 10000
 MAX_RETRIES = 5
 BASE_BACKOFF = 1
 INCREMENTAL = False  # For max data, fetch historical
-HISTORICAL_START = "2020-01-01"  # Deeper for patterns
+HISTORICAL_START = "2017-01-01"  # Deeper for patterns
+HISTORICAL_MINUTE_START = "2022-01-01"
+MINUTE_VALUABLE_SOURCES = ["eodhd", "twelve_data", "dukascopy", "barchart"]
 CREDIT_THRESHOLD = 0.8
 MONTHLY_CREDITS = 49.0
 WALLETS = ['0xexample_whale1', '0xexample_whale2']  # Add tracked wallets, dynamically expanded
@@ -310,6 +312,18 @@ def init_db():
     ''')
     cur.execute('CREATE INDEX IF NOT EXISTS idx_prices_date ON prices (date);')
     cur.execute('CREATE INDEX IF NOT EXISTS idx_prices_ticker ON prices (ticker);')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS high_res_prices (
+            ticker TEXT,
+            date TEXT,
+            close REAL,
+            volume REAL,
+            volatility REAL,
+            momentum REAL,
+            PRIMARY KEY (ticker, date)
+        )
+    ''')
+    cur.execute('CREATE INDEX IF NOT EXISTS idx_high_res_date_ticker ON high_res_prices (date DESC, ticker);')
     # stocktwits table
     cur.execute('''
         CREATE TABLE IF NOT EXISTS stocktwits (
