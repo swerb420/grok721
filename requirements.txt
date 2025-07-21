@@ -1,4 +1,9 @@
 aiohttp
-python-dotenv
-tenacity
+apify-client
+apscheduler
 pytest
+python-dotenv
+python-telegram-bot
+requests
+tenacity
+transformers
