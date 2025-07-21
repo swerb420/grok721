@@ -29,3 +29,16 @@ python async_pipeline.py
 The async version uses `aiohttp` for non-blocking requests and stores
 gas price data in a local SQLite database.
 
+
+## Optional dependencies
+
+The advanced pipeline examples use many third-party libraries for data ingestion
+and machine learning. To install these extras, run:
+
+```bash
+pip install -r requirements-extra.txt
+```
+
+This will install packages such as `catboost`, `xgboost`, `lightgbm`, `plotly`,
+`backtrader`, `pandas-gbq` and many others that are imported in the larger
+pipeline scripts.
