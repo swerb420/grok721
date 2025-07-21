@@ -1,14 +1,30 @@
 # grok721
 
-This repository contains example data pipeline scripts. The `main.py` script
-provides a simplified workflow that ingests gas prices and tweets. The
-`extra_pipeline.py` module expands this with additional ingestion functions.
+This repository contains several example data pipeline scripts. `main.py` provides a minimal workflow that ingests gas prices and tweets. The other modules showcase progressively more complex pipelines and are meant as reference implementations.
 
-The `advanced_pipeline.py` and `mega_pipeline.py` files provide more
-comprehensive examples. They demonstrate how to initialise a
-comprehensive SQLite database and perform concurrent ingestion from many
-data sources. These scripts are intended as reference implementations
-rather than runnable programs out of the box.
+## Pipeline overview
+- `main.py` – basic ingestion example.
+- `async_pipeline.py` – asynchronous variant using `aiohttp`.
+- `extra_pipeline.py` – adds additional ingestion functions.
+- `advanced_pipeline.py` – full pipeline with database setup and concurrency.
+- `mega_pipeline.py` – expanded version with more sources.
+- `ultimate_pipeline.py` – maximal demonstration combining all features.
+- `untrimmed_pipeline.py` – raw variant containing the full import stack.
+
+## Dependencies
+
+Install the base requirements for the lightweight scripts:
+
+```bash
+pip install -r requirements.txt
+```
+
+To run the advanced examples (`extra_pipeline.py`, `advanced_pipeline.py`, `mega_pipeline.py`, `ultimate_pipeline.py`, `untrimmed_pipeline.py`) install the extra dependencies as well:
+
+```bash
+pip install -r requirements.txt -r requirements-extra.txt
+```
+
 
 ## Configuration
 
