@@ -13,8 +13,9 @@ rather than runnable programs out of the box.
 ## Configuration
 
 Create a copy of `.env.example` named `.env` and fill in your API
-credentials. Environment variables will be loaded automatically when the
-scripts run.
+credentials. Environment variables such as `APIFY_TOKEN` and
+`TELEGRAM_BOT_TOKEN` will be loaded automatically when the scripts run.
+Refer to `.env.example` for the full list of supported variables.
 
 ## Running the async pipeline
 

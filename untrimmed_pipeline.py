@@ -48,35 +48,36 @@ from covalent import CovalentClient  # For Covalent; pip install covalent-api-sd
 import lunarcrush  # For LunarCrush; pip install lunarcrush
 import blockchair  # For Blockchair; pip install blockchair
 from glassnode.client import GlassnodeClient  # For Glassnode; pip install glassnode
+from config import get_config
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log_detailed.txt", mode='a', encoding='utf-8'), logging.StreamHandler()])  # Detailed logging with append
 
-# Config - Replace with your actual keys/tokens
-APIFY_TOKEN = "YOUR_APIFY_TOKEN_HERE"
-TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID_HERE"
-ALPHA_VANTAGE_KEY = "YOUR_ALPHA_VANTAGE_KEY_HERE"  # Free at alphavantage.co
-COINGLASS_KEY = "YOUR_COINGLASS_KEY_HERE"  # From coinglass.com/api
-ETHERSCAN_KEY = "YOUR_ETHERSCAN_KEY_HERE"  # From etherscan.io
-DUNE_API_KEY = "YOUR_DUNE_API_KEY_HERE"  # From dune.com
-DUNE_QUERY_ID = "YOUR_DUNE_QUERY_ID_HERE"  # Create query on Dune UI for wallet tx, get ID
-STOCKTWITS_TOKEN = "YOUR_STOCKTWITS_TOKEN_HERE"  # Free signup at developers.stocktwits.com
-GOOGLE_CLOUD_PROJECT = "YOUR_GOOGLE_PROJECT_ID"  # For BigQuery
-FINNHUB_KEY = "YOUR_FINNHUB_KEY_HERE"  # Free at finnhub.io
-POLYGON_KEY = "YOUR_POLYGON_KEY_HERE"  # Free at polygon.io
-FRED_API_KEY = "YOUR_FRED_API_KEY_HERE"  # From api.stlouisfed.org
-NEWSAPI_KEY = "YOUR_NEWSAPI_KEY_HERE"  # From newsapi.org
-OPENEXCHANGE_KEY = "YOUR_OPENEXCHANGE_KEY_HERE"  # Free at openexchangerates.org
-GITHUB_TOKEN = "YOUR_GITHUB_TOKEN_HERE"  # Optional for higher limits
-FMP_KEY = "YOUR_FMP_KEY_HERE"  # Free at financialmodelingprep.com
-EODHD_KEY = "YOUR_EODHD_KEY_HERE"  # Free at eodhistoricaldata.com
-TWELVE_DATA_KEY = "YOUR_TWELVE_DATA_KEY_HERE"  # Free at twelvedata.com
-BARCHART_KEY = "YOUR_BARCHART_KEY_HERE"  # Free at barchart.com/ondemand
-MORALIS_KEY = "YOUR_MORALIS_KEY_HERE"  # Free at moralis.io
-COVALENT_KEY = "YOUR_COVALENT_KEY_HERE"  # Free at covalent.network
-LUNARCRUSH_KEY = "YOUR_LUNARCRUSH_KEY_HERE"  # Free at lunarcrush.com
-BLOCKCHAIR_KEY = "YOUR_BLOCKCHAIR_KEY_HERE"  # Free at blockchair.com
-GLASSNODE_KEY = "YOUR_GLASSNODE_KEY_HERE"  # Free at glassnode.com
+# Config - values are loaded from the environment
+APIFY_TOKEN = get_config("APIFY_TOKEN")
+TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID")
+ALPHA_VANTAGE_KEY = get_config("ALPHA_VANTAGE_KEY")
+COINGLASS_KEY = get_config("COINGLASS_KEY")
+ETHERSCAN_KEY = get_config("ETHERSCAN_KEY")
+DUNE_API_KEY = get_config("DUNE_API_KEY")
+DUNE_QUERY_ID = get_config("DUNE_QUERY_ID")
+STOCKTWITS_TOKEN = get_config("STOCKTWITS_TOKEN")
+GOOGLE_CLOUD_PROJECT = get_config("GOOGLE_CLOUD_PROJECT")
+FINNHUB_KEY = get_config("FINNHUB_KEY")
+POLYGON_KEY = get_config("POLYGON_KEY")
+FRED_API_KEY = get_config("FRED_API_KEY")
+NEWSAPI_KEY = get_config("NEWSAPI_KEY")
+OPENEXCHANGE_KEY = get_config("OPENEXCHANGE_KEY")
+GITHUB_TOKEN = get_config("GITHUB_TOKEN")
+FMP_KEY = get_config("FMP_KEY")
+EODHD_KEY = get_config("EODHD_KEY")
+TWELVE_DATA_KEY = get_config("TWELVE_DATA_KEY")
+BARCHART_KEY = get_config("BARCHART_KEY")
+MORALIS_KEY = get_config("MORALIS_KEY")
+COVALENT_KEY = get_config("COVALENT_KEY")
+LUNARCRUSH_KEY = get_config("LUNARCRUSH_KEY")
+BLOCKCHAIR_KEY = get_config("BLOCKCHAIR_KEY")
+GLASSNODE_KEY = get_config("GLASSNODE_KEY")
 DB_FILE = "super_db.db"
 ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]  # Include tracking accounts
