@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from apscheduler.schedulers.background import BackgroundScheduler
 from backtrader import Cerebro, Strategy, indicators
 from backtrader.feeds import PandasData
+from utils import compute_vibe
 from pandas_gbq import read_gbq  # For BigQuery; pip install pandas-gbq
 import ccxt  # For order books
 import plotly.express as px  # For interactive dashboard; pip install plotly
@@ -142,16 +143,6 @@ lda_gs = GridSearchCV(LatentDirichletAllocation(random_state=42, n_jobs=-1, lear
 # Lock for DB concurrency
 db_lock = threading.Lock()
 
-def compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies):
-    likes, retweets, replies = map(lambda x: max(x, 0) if x is not None else 0, [likes, retweets, replies])
-    engagement = np.log1p(likes * 1.0 + retweets * 2.5 + replies * 1.5)  # Log with weights
-    base_score = sentiment_score * (1.4 if sentiment_label == "POSITIVE" else -1.2)
-    vibe_score = (base_score + engagement) * 4.7 + np.random.normal(0, 0.04)  # Noise
-    vibe_score = np.clip(vibe_score, 0, 10)
-    thresholds = np.array([7.0, 5.0, 3.0])  # Tuned
-    labels = np.array(["Hype/Positive Impact", "Engaging/Neutral", "Controversial/Mixed", "Negative/Low Engagement"])
-    vibe_label = labels[np.digitize(vibe_score, thresholds, right=True)]
-    return vibe_score, vibe_label
 
 def init_db():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=180, isolation_level=None)  # Auto-commit, 3 min timeout

@@ -28,6 +28,7 @@ from telegram import Bot
 # not required for the basic workflow implemented below.
 from apscheduler.schedulers.background import BackgroundScheduler
 from config import get_config
+from utils import compute_vibe
 
 # Configuration via environment variables or .env file
 APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
@@ -153,21 +154,6 @@ def init_db() -> sqlite3.Connection:
 # Utility functions
 # ---------------------------------------------------------------------------
 
-def compute_vibe(sentiment_label: str, sentiment_score: float, likes: int, retweets: int, replies: int):
-    """Compute a simplified "vibe" score from sentiment and engagement."""
-    engagement = (likes + retweets * 2 + replies) / 1000.0 if likes is not None else 0
-    base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
-    vibe_score = (base_score + engagement) * 5
-    vibe_score = min(max(vibe_score, 0), 10)
-    if vibe_score > 7:
-        vibe_label = "Hype/Positive Impact"
-    elif vibe_score > 5:
-        vibe_label = "Engaging/Neutral"
-    elif vibe_score > 3:
-        vibe_label = "Controversial/Mixed"
-    else:
-        vibe_label = "Negative/Low Engagement"
-    return vibe_score, vibe_label
 
 
 def store_tweet(conn: sqlite3.Connection, item: dict) -> TweetData:
