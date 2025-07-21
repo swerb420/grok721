@@ -10,3 +10,22 @@ comprehensive SQLite database and perform concurrent ingestion from many
 data sources. These scripts are intended as reference implementations
 rather than runnable programs out of the box.
 
+## Configuration
+
+Create a copy of `.env.example` named `.env` and fill in your API
+credentials. Environment variables will be loaded automatically when the
+scripts run.
+
+## Running the async pipeline
+
+For a lightweight example that works well on modest hardware, install
+the dependencies and run `async_pipeline.py`:
+
+```bash
+pip install -r requirements.txt
+python async_pipeline.py
+```
+
+The async version uses `aiohttp` for non-blocking requests and stores
+gas price data in a local SQLite database.
+

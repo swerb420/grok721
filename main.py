@@ -15,7 +15,8 @@ import datetime
 import sqlite3
 import logging
 import random
-from typing import Any, Callable
+from typing import Any, Callable, List
+from dataclasses import dataclass
 
 from apify_client import ApifyClient
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
@@ -25,16 +26,17 @@ from telegram import Bot
 # users can extend the script with additional functionality if desired. They are
 # not required for the basic workflow implemented below.
 from apscheduler.schedulers.background import BackgroundScheduler
+from config import get_config
 
-# Configuration placeholders (fill with real values)
-APIFY_TOKEN = "apify_api_xxxxxxxxxx"
-TELEGRAM_BOT_TOKEN = "xxxxxxxxxx:xxxxxxxxxx"
-TELEGRAM_CHAT_ID = "xxxxxxxxxx"
-ETHERSCAN_KEY = "xxxxxxxxxx"
-DUNE_API_KEY = "xxxxxxxxxx"
-DUNE_QUERY_ID = "5081617"
-DB_FILE = "super_db.db"
-ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+# Configuration via environment variables or .env file
+APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
+TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN", "xxxxxxxxxx:xxxxxxxxxx")
+TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID", "xxxxxxxxxx")
+ETHERSCAN_KEY = get_config("ETHERSCAN_KEY", "xxxxxxxxxx")
+DUNE_API_KEY = get_config("DUNE_API_KEY", "xxxxxxxxxx")
+DUNE_QUERY_ID = get_config("DUNE_QUERY_ID", "5081617")
+DB_FILE = get_config("DB_FILE", "super_db.db")
+ACTOR_ID = get_config("ACTOR_ID", "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest")
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
 MAX_TWEETS_PER_USER = 1000
 MAX_RETRIES = 5
@@ -42,6 +44,37 @@ BASE_BACKOFF = 1
 HISTORICAL_START = "2020-01-01"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
+# ---------------------------------------------------------------------------
+# Typed data models
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class TweetData:
+    """Structured tweet information used for storage."""
+
+    id: str
+    username: str
+    created_at: str
+    text: str
+    likes: int
+    retweets: int
+    replies: int
+    media: List[str]
+
+
+@dataclass
+class GasPrice:
+    """Simplified gas price representation."""
+
+    timestamp: str
+    fast_gas: float
+    average_gas: float
+    slow_gas: float
+    base_fee: float
+    source: str
 
 # Machine learning models used for tweet sentiment
 sentiment_analyzer = pipeline(
@@ -136,16 +169,20 @@ def compute_vibe(sentiment_label: str, sentiment_score: float, likes: int, retwe
     return vibe_score, vibe_label
 
 
-def store_tweet(conn: sqlite3.Connection, item: dict):
+def store_tweet(conn: sqlite3.Connection, item: dict) -> TweetData:
     """Persist a tweet in the database."""
     cur = conn.cursor()
-    tweet_id = item.get("id")
-    created_at = item.get("created_at")
-    text = item.get("text", "")
-    likes = item.get("favorite_count", 0)
-    retweets = item.get("retweet_count", 0)
-    replies = item.get("reply_count", 0)
-    media = json.dumps(item.get("media", []))
+    tweet = TweetData(
+        id=item.get("id"),
+        username=item.get("user", {}).get("username"),
+        created_at=item.get("created_at"),
+        text=item.get("text", ""),
+        likes=item.get("favorite_count", 0),
+        retweets=item.get("retweet_count", 0),
+        replies=item.get("reply_count", 0),
+        media=item.get("media", []),
+    )
+    media_json = json.dumps(tweet.media)
 
     sentiment = sentiment_analyzer(text[:512])[0]
     vibe_score, vibe_label = compute_vibe(
@@ -161,15 +198,15 @@ def store_tweet(conn: sqlite3.Connection, item: dict):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            tweet_id,
-            item.get("user", {}).get("username"),
-            created_at,
+            tweet.id,
+            tweet.username,
+            tweet.created_at,
             datetime.datetime.utcnow().isoformat(),
-            text,
-            likes,
-            retweets,
-            replies,
-            media,
+            tweet.text,
+            tweet.likes,
+            tweet.retweets,
+            tweet.replies,
+            media_json,
             sentiment["label"],
             float(sentiment["score"]),
             vibe_score,
@@ -180,7 +217,7 @@ def store_tweet(conn: sqlite3.Connection, item: dict):
         ),
     )
     conn.commit()
-    return tweet_id, media
+    return tweet
 
 
 def update_tweet_analysis(conn: sqlite3.Connection, tweet_id: str, analysis: dict) -> None:
@@ -294,7 +331,7 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
     }
     run = retry_func(client.actor(ACTOR_ID).call, run_input=input_data)
     for item in retry_func(client.dataset(run["defaultDatasetId"]).iterate_items):
-        tweet_id, media = store_tweet(conn, item)
+        tweet = store_tweet(conn, item)
         # Additional processing such as media analysis could be added here
     logging.info("Tweet ingestion complete")
     monitor_costs(client)
