@@ -30,3 +30,6 @@ python async_pipeline.py
 The async version uses `aiohttp` for non-blocking requests and stores
 gas price data in a local SQLite database.
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).

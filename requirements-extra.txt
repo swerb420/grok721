@@ -1,12 +1,3 @@
-aiohttp
-apify-client
-apscheduler
-pytest
-python-dotenv
-python-telegram-bot
-requests
-tenacity
-transformers
 pandas
 numpy
 scipy
@@ -37,3 +28,4 @@ covalent-api-sdk
 lunarcrush
 blockchair
 glassnode
+pillow

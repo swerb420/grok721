@@ -43,28 +43,30 @@ from config import get_config
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log.txt"), logging.StreamHandler()])  # Detailed logging to file and console
 
-# Config - values are loaded from the environment
-APIFY_TOKEN = get_config("APIFY_TOKEN")
-TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID")
-ALPHA_VANTAGE_KEY = get_config("ALPHA_VANTAGE_KEY")
-COINGLASS_KEY = get_config("COINGLASS_KEY")
-ETHERSCAN_KEY = get_config("ETHERSCAN_KEY")
-DUNE_API_KEY = get_config("DUNE_API_KEY")
-DUNE_QUERY_ID = get_config("DUNE_QUERY_ID")
-STOCKTWITS_TOKEN = get_config("STOCKTWITS_TOKEN")
-GOOGLE_CLOUD_PROJECT = get_config("GOOGLE_CLOUD_PROJECT")
-FINNHUB_KEY = get_config("FINNHUB_KEY")
-POLYGON_KEY = get_config("POLYGON_KEY")
-FRED_API_KEY = get_config("FRED_API_KEY")
-NEWSAPI_KEY = get_config("NEWSAPI_KEY")
-OPENEXCHANGE_KEY = get_config("OPENEXCHANGE_KEY")
-GITHUB_TOKEN = get_config("GITHUB_TOKEN")
+# Config from environment or .env file
+APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
+TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN", "xxxxxxxxxx:xxxxxxxxxx")
+TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID", "xxxxxxxxxx")
+ALPHA_VANTAGE_KEY = get_config("ALPHA_VANTAGE_KEY", "xxxxxxxxxx")
+COINGLASS_KEY = get_config("COINGLASS_KEY", "xxxxxxxxxx")
+ETHERSCAN_KEY = get_config("ETHERSCAN_KEY", "xxxxxxxxxx")
+DUNE_API_KEY = get_config("DUNE_API_KEY", "xxxxxxxxxx")
+DUNE_QUERY_ID = get_config("DUNE_QUERY_ID", "xxxxxxxxxx")
+STOCKTWITS_TOKEN = get_config("STOCKTWITS_TOKEN", "xxxxxxxxxx")
+GOOGLE_CLOUD_PROJECT = get_config("GOOGLE_CLOUD_PROJECT", "xxxxxxxxxx")
+FINNHUB_KEY = get_config("FINNHUB_KEY", "xxxxxxxxxx")
+POLYGON_KEY = get_config("POLYGON_KEY", "xxxxxxxxxx")
+FRED_API_KEY = get_config("FRED_API_KEY", "xxxxxxxxxx")
+NEWSAPI_KEY = get_config("NEWSAPI_KEY", "xxxxxxxxxx")
+OPENEXCHANGE_KEY = get_config("OPENEXCHANGE_KEY", "xxxxxxxxxx")
+GITHUB_TOKEN = get_config("GITHUB_TOKEN", "xxxxxxxxxx")
 IMF_COUNTRIES = ['USA', 'CHN', 'JPN', 'EUR']  # Expanded
 NOAA_LOCATIONS = [('NYC', 40.7128, -74.0060), ('LON', 51.5074, -0.1278)]  # For weather
 SEC_COMPANIES = ['Tesla Inc', 'MicroStrategy Inc']  # Crypto-related
-DB_FILE = "super_db.db"
-ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+DB_FILE = get_config("DB_FILE", "super_db.db")
+ACTOR_ID = get_config(
+    "ACTOR_ID", "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+)
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]  # Include tracking accounts
 SELECT_ACCOUNTS = []  # Select accounts for visual analysis, managed via Telegram
 MAX_TWEETS_PER_USER = 10000
