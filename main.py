@@ -381,6 +381,7 @@ def main() -> None:
     except KeyboardInterrupt:
         scheduler.shutdown()
         logging.info("Shutdown complete")
+        conn.close()
 
 
 if __name__ == "__main__":
