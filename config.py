@@ -1,5 +1,6 @@
 """Helper for retrieving configuration settings from environment variables."""
 
+
 import os
 from typing import Optional
 from pathlib import Path
