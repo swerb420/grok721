@@ -11,6 +11,7 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CallbackQueryHandler, CommandHandler
 import logging
 import requests
+from config import get_config
 import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
@@ -35,25 +36,27 @@ from concurrent.futures import ThreadPoolExecutor, as_completed  # For concurren
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Config - Replace with your actual keys/tokens
-APIFY_TOKEN = "YOUR_APIFY_TOKEN_HERE"
-TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID_HERE"
-ALPHA_VANTAGE_KEY = "YOUR_ALPHA_VANTAGE_KEY_HERE"  # Free at alphavantage.co
-COINGLASS_KEY = "YOUR_COINGLASS_KEY_HERE"  # From coinglass.com/api
-ETHERSCAN_KEY = "YOUR_ETHERSCAN_KEY_HERE"  # From etherscan.io
-DUNE_API_KEY = "YOUR_DUNE_API_KEY_HERE"  # From dune.com
-DUNE_QUERY_ID = "YOUR_DUNE_QUERY_ID_HERE"  # Create query on Dune UI for wallet tx, get ID
-STOCKTWITS_TOKEN = "YOUR_STOCKTWITS_TOKEN_HERE"  # Free signup at developers.stocktwits.com
-GOOGLE_CLOUD_PROJECT = "YOUR_GOOGLE_PROJECT_ID"  # For BigQuery
-NEWSAPI_KEY = "YOUR_NEWSAPI_KEY_HERE"  # From newsapi.org
-QUANDL_KEY = "YOUR_QUANDL_KEY_HERE"  # From nasdaq.com/data-link (free tier)
-FRED_API_KEY = "YOUR_FRED_API_KEY_HERE"  # From api.stlouisfed.org
-WORLD_BANK_API = "https://api.worldbank.org/v2"  # No key needed
-FINNHUB_KEY = "YOUR_FINNHUB_KEY_HERE"  # Free at finnhub.io
-POLYGON_KEY = "YOUR_POLYGON_KEY_HERE"  # Free at polygon.io
-DB_FILE = "super_db.db"
-ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+# Config from environment or .env file
+APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
+TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN", "xxxxxxxxxx:xxxxxxxxxx")
+TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID", "xxxxxxxxxx")
+ALPHA_VANTAGE_KEY = get_config("ALPHA_VANTAGE_KEY", "xxxxxxxxxx")
+COINGLASS_KEY = get_config("COINGLASS_KEY", "xxxxxxxxxx")
+ETHERSCAN_KEY = get_config("ETHERSCAN_KEY", "xxxxxxxxxx")
+DUNE_API_KEY = get_config("DUNE_API_KEY", "xxxxxxxxxx")
+DUNE_QUERY_ID = get_config("DUNE_QUERY_ID", "xxxxxxxxxx")
+STOCKTWITS_TOKEN = get_config("STOCKTWITS_TOKEN", "xxxxxxxxxx")
+GOOGLE_CLOUD_PROJECT = get_config("GOOGLE_CLOUD_PROJECT", "xxxxxxxxxx")
+NEWSAPI_KEY = get_config("NEWSAPI_KEY", "xxxxxxxxxx")
+QUANDL_KEY = get_config("QUANDL_KEY", "xxxxxxxxxx")
+FRED_API_KEY = get_config("FRED_API_KEY", "xxxxxxxxxx")
+WORLD_BANK_API = get_config("WORLD_BANK_API", "https://api.worldbank.org/v2")
+FINNHUB_KEY = get_config("FINNHUB_KEY", "xxxxxxxxxx")
+POLYGON_KEY = get_config("POLYGON_KEY", "xxxxxxxxxx")
+DB_FILE = get_config("DB_FILE", "super_db.db")
+ACTOR_ID = get_config(
+    "ACTOR_ID", "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+)
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]  # Include tracking accounts
 SELECT_ACCOUNTS = []  # Select accounts for visual analysis, managed via Telegram
 MAX_TWEETS_PER_USER = 10000
