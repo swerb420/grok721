@@ -40,6 +40,7 @@ from noaa_sdk import NOAA  # For NOAA; pip install noaa-sdk
 from github import Github  # For GitHub; pip install PyGithub
 from imf import IMFData  # For IMF; pip install imfdatapy or similar
 from config import get_config
+from utils import compute_vibe
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log.txt"), logging.StreamHandler()])  # Detailed logging to file and console
 
@@ -104,19 +105,6 @@ fintwit_model = AutoModelForSequenceClassification.from_pretrained("StephanAkker
 # Lock for DB concurrency
 db_lock = threading.Lock()
 
-def compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies):
-    if likes is None or retweets is None or replies is None:
-        logging.warning("Missing engagement metrics, using defaults")
-        likes = retweets = replies = 0
-    engagement = (likes + retweets * 2 + replies) / 1000.0
-    base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
-    vibe_score = (base_score + engagement) * 5
-    vibe_score = min(max(vibe_score, 0), 10)
-    if vibe_score > 7: vibe_label = "Hype/Positive Impact"
-    elif vibe_score > 5: vibe_label = "Engaging/Neutral"
-    elif vibe_score > 3: vibe_label = "Controversial/Mixed"
-    else: vibe_label = "Negative/Low Engagement"
-    return vibe_score, vibe_label
 
 def init_db():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=60)  # Longer timeout

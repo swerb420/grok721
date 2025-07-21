@@ -12,6 +12,7 @@ from telegram.ext import Updater, CallbackQueryHandler, CommandHandler
 import logging
 import requests
 from config import get_config
+from utils import compute_vibe
 import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr, spearmanr
@@ -93,19 +94,6 @@ fintwit_model = AutoModelForSequenceClassification.from_pretrained("StephanAkker
 # Lock for DB concurrency
 db_lock = threading.Lock()
 
-def compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies):
-    if likes is None or retweets is None or replies is None:
-        logging.warning("Missing engagement metrics, using defaults")
-        likes = retweets = replies = 0
-    engagement = (likes + retweets * 2 + replies) / 1000.0
-    base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
-    vibe_score = (base_score + engagement) * 5
-    vibe_score = min(max(vibe_score, 0), 10)
-    if vibe_score > 7: vibe_label = "Hype/Positive Impact"
-    elif vibe_score > 5: vibe_label = "Engaging/Neutral"
-    elif vibe_score > 3: vibe_label = "Controversial/Mixed"
-    else: vibe_label = "Negative/Low Engagement"
-    return vibe_score, vibe_label
 
 def compute_sentiment(text):
     if not text or not isinstance(text, str):

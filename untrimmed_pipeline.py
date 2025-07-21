@@ -49,6 +49,7 @@ import lunarcrush  # For LunarCrush; pip install lunarcrush
 import blockchair  # For Blockchair; pip install blockchair
 from glassnode.client import GlassnodeClient  # For Glassnode; pip install glassnode
 from config import get_config
+from utils import compute_vibe
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log_detailed.txt", mode='a', encoding='utf-8'), logging.StreamHandler()])  # Detailed logging with append
 
@@ -130,16 +131,6 @@ lda_gs = GridSearchCV(LatentDirichletAllocation(random_state=42, n_jobs=-1, lear
 # Lock for DB concurrency
 db_lock = threading.Lock()
 
-def compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies):
-    likes, retweets, replies = map(lambda x: max(x, 0) if x is not None else 0, [likes, retweets, replies])
-    engagement = np.log1p(likes + retweets * 2.5 + replies * 1.5)  # Log for skewed data
-    base_score = sentiment_score * (1.3 if sentiment_label == "POSITIVE" else -1.1)
-    vibe_score = (base_score + engagement) * 4.8 + np.random.normal(0, 0.03)  # Noise for generalization
-    vibe_score = np.clip(vibe_score, 0, 10)
-    thresholds = np.array([7.2, 5.3, 3.4])  # Data-driven thresholds
-    labels = np.array(["Hype/Positive Impact", "Engaging/Neutral", "Controversial/Mixed", "Negative/Low Engagement"])
-    vibe_label = labels[np.digitize(vibe_score, thresholds, right=True)]
-    return vibe_score, vibe_label
 
 def init_db():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=180, isolation_level=None)  # Auto-commit, 3 min timeout

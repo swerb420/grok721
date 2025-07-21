@@ -44,6 +44,7 @@ import barchart_ondemand  # For Barchart; pip install barchart-ondemand-client-p
 from fmp_python.fmp import FMP  # For Financial Modeling Prep; pip install fmp-python
 from openexchangerates import OpenExchangeRates  # For Open Exchange Rates; pip install openexchangerates
 from config import get_config
+from utils import compute_vibe
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log_detailed.txt", mode='a', encoding='utf-8'), logging.StreamHandler()])  # Detailed logging with append
 
@@ -115,29 +116,6 @@ fintwit_model = AutoModelForSequenceClassification.from_pretrained("StephanAkker
 
 # Lock for DB concurrency
 db_lock = threading.Lock()
-
-def fetch_with_fallback(func, **kwargs):
-    """Attempt minute resolution then fall back to coarser intervals."""
-    try:
-        return func(interval='1m', **kwargs)
-    except Exception as e:
-        logging.warning("Minute fetch failed: %s", e)
-        try:
-            return func(interval='5m', **kwargs)
-        except Exception as e2:
-            logging.warning("5m fetch failed: %s", e2)
-            return func(interval='1h', **kwargs)
-
-def compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies):
-    likes, retweets, replies = map(lambda x: x if x is not None and x >= 0 else 0, [likes, retweets, replies])
-    engagement = (likes + retweets * 2.5 + replies * 1.5) / 1000.0  # Weighted engagement
-    base_score = sentiment_score * 1.2 if sentiment_label == "POSITIVE" else -sentiment_score * 1.1  # Asymmetric weighting
-    vibe_score = (base_score + engagement) * 4.5 + np.random.normal(0, 0.05)  # Slight noise for robustness
-    vibe_score = min(max(vibe_score, 0), 10)
-    thresholds = [7.5, 5.5, 3.5]  # Adjusted thresholds
-    labels = ["Hype/Positive Impact", "Engaging/Neutral", "Controversial/Mixed", "Negative/Low Engagement"]
-    vibe_label = next((l for t, l in zip(thresholds, labels) if vibe_score > t), labels[-1])
-    return vibe_score, vibe_label
 
 def init_db():
     conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=120, isolation_level=None)  # Auto-commit, longer timeout
