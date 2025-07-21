@@ -10,9 +10,9 @@ def compute_vibe(
     replies: Optional[int] = None,
 ) -> Tuple[float, str]:
     """Compute a simplified vibe score from sentiment and engagement."""
-    likes = 0 if likes is None else likes
-    retweets = 0 if retweets is None else retweets
-    replies = 0 if replies is None else replies
+    likes = max(0, likes or 0)
+    retweets = max(0, retweets or 0)
+    replies = max(0, replies or 0)
     engagement = (likes + retweets * 2 + replies) / 1000.0
     base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
     vibe_score = (base_score + engagement) * 5
