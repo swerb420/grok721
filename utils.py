@@ -1,5 +1,7 @@
 """Utility functions used across pipeline scripts."""
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Callable, Any, List
+import time
+import logging
 
 
 def compute_vibe(
@@ -26,3 +28,52 @@ def compute_vibe(
     else:
         vibe_label = "Negative/Low Engagement"
     return vibe_score, vibe_label
+
+
+def fetch_with_fallback(
+    fetch_func: Callable[..., Any],
+    *,
+    param_name: str = "interval",
+    intervals: Optional[List[Any]] = None,
+    pause: float = 1,
+    **kwargs: Any,
+) -> Any:
+    """Fetch data trying increasingly coarse intervals.
+
+    Parameters
+    ----------
+    fetch_func:
+        Function performing the HTTP request.
+    param_name:
+        Name of the parameter controlling resolution (default ``"interval"``).
+    intervals:
+        Sequence of interval values to try in order of preference.
+    pause:
+        Seconds to sleep between retries for non-rate limit errors.
+    kwargs:
+        Additional arguments passed to ``fetch_func``.
+    """
+    if intervals is None:
+        intervals = ["1min", "5min", "1h"]
+
+    last_exc: Optional[Exception] = None
+    for interval in intervals:
+        params = dict(kwargs)
+        params[param_name] = interval
+        try:
+            return fetch_func(**params)
+        except Exception as exc:  # pragma: no cover - depends on runtime errors
+            last_exc = exc
+            resp = getattr(exc, "response", None)
+            if resp is not None and getattr(resp, "status_code", None) == 429:
+                wait = int(getattr(resp, "headers", {}).get("Retry-After", 60))
+                logging.warning("Rate limited, waiting %s seconds", wait)
+                time.sleep(wait)
+            else:
+                logging.warning(
+                    "Fetch failed with %s=%s: %s", param_name, interval, exc
+                )
+                time.sleep(pause)
+    if last_exc:
+        raise last_exc
+

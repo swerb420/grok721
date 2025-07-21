@@ -46,7 +46,7 @@ import barchart_ondemand  # For Barchart; pip install barchart-ondemand-client-p
 from fmp_python.fmp import FMP  # For Financial Modeling Prep; pip install fmp-python
 from openexchangerates import OpenExchangeRates  # For Open Exchange Rates; pip install openexchangerates
 from config import get_config
-from utils import compute_vibe
+from utils import compute_vibe, fetch_with_fallback
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log_detailed.txt", mode='a', encoding='utf-8'), logging.StreamHandler()])  # Detailed logging with append
 
@@ -325,10 +325,14 @@ def ingest_twelve_data(conn):
 def ingest_dukascopy(conn):
     for pair in DUKASCOPY_PAIRS:
         try:
-            try:
-                df = pydukascopy.get_historical_data(pair, from_date=HISTORICAL_MINUTE_START, to_date=datetime.datetime.now().strftime('%Y-%m-%d'), timeframe='M1')
-            except Exception:
-                df = pydukascopy.get_historical_data(pair, from_date=HISTORICAL_MINUTE_START, to_date=datetime.datetime.now().strftime('%Y-%m-%d'), timeframe='M5')
+            df = fetch_with_fallback(
+                pydukascopy.get_historical_data,
+                param_name='timeframe',
+                intervals=['M1', 'M5', 'H1'],
+                pair=pair,
+                from_date=HISTORICAL_MINUTE_START,
+                to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+            )
             df = df.dropna(subset=['Close', 'Volume']).sort_values('Timestamp').drop_duplicates('Timestamp')
             df['date'] = pd.to_datetime(df['Timestamp']).dt.isoformat()
             df['adjusted_close'] = df['Close']
@@ -352,10 +356,16 @@ def ingest_barchart(conn):
     client = barchart_ondemand.BarchartOnDemandClient(api_key=BARCHART_KEY, endpoint='https://ondemand.websol.barchart.com')
     for symbol in BARCHART_SYMBOLS:
         try:
-            try:
-                historical = client.get_history(symbol, type='intraday', start=HISTORICAL_MINUTE_START, maxRecords=10000, order='asc', interval=1)
-            except Exception:
-                historical = client.get_history(symbol, type='intraday', start=HISTORICAL_MINUTE_START, maxRecords=10000, order='asc', interval=5)
+            historical = fetch_with_fallback(
+                client.get_history,
+                param_name='interval',
+                intervals=[1, 5, 60],
+                symbol=symbol,
+                type='intraday',
+                start=HISTORICAL_MINUTE_START,
+                maxRecords=10000,
+                order='asc',
+            )
             df = pd.DataFrame(historical['results'])
             df = df.dropna(subset=['close', 'volume']).sort_values('timestamp').drop_duplicates('timestamp')
             df['date'] = pd.to_datetime(df['timestamp']).dt.isoformat()
