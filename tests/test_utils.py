@@ -1,46 +1,5 @@
-import sys
-import types
 import pytest
 from utils import compute_vibe
-
-if 'apify_client' not in sys.modules:
-    apify_client = types.ModuleType('apify_client')
-    apify_client.ApifyClient = lambda token: None
-    sys.modules['apify_client'] = apify_client
-
-if 'telegram' not in sys.modules:
-    telegram = types.ModuleType('telegram')
-    telegram.Bot = lambda token: None
-    sys.modules['telegram'] = telegram
-
-if 'apscheduler.schedulers.background' not in sys.modules:
-    background = types.ModuleType('background')
-    background.BackgroundScheduler = lambda *a, **k: None
-    schedulers = types.ModuleType('schedulers')
-    schedulers.background = background
-    apscheduler = types.ModuleType('apscheduler')
-    apscheduler.schedulers = schedulers
-    sys.modules['apscheduler'] = apscheduler
-    sys.modules['apscheduler.schedulers'] = schedulers
-    sys.modules['apscheduler.schedulers.background'] = background
-
-if 'transformers' not in sys.modules:
-    transformers = types.ModuleType('transformers')
-    transformers.pipeline = lambda *a, **k: (lambda text: [{'label': 'POSITIVE', 'score': 1.0}])
-    transformers.AutoTokenizer = types.SimpleNamespace(from_pretrained=lambda *a, **k: None)
-    transformers.AutoModelForSequenceClassification = types.SimpleNamespace(from_pretrained=lambda *a, **k: None)
-    sys.modules['transformers'] = transformers
-
-if 'requests' not in sys.modules:
-    requests = types.ModuleType('requests')
-    def _resp():
-        class R:
-            def json(self):
-                return {}
-        return R()
-    requests.get = lambda *a, **k: _resp()
-    requests.post = lambda *a, **k: _resp()
-    sys.modules['requests'] = requests
 
 
 def test_compute_vibe_positive():
@@ -53,7 +12,8 @@ def test_compute_vibe_positive():
     "sentiment_label,sentiment_score,likes,retweets,replies,expected_label",
     [
         ("NEGATIVE", 0.5, 0, 0, 0, "Negative/Low Engagement"),
-        ("POSITIVE", 0.9, -1000, -500, -250, "Negative/Low Engagement"),
+        ("POSITIVE", 0.9, -1000, -500, -250, "Controversial/Mixed"),
+        ("POSITIVE", 0.9, None, None, None, "Controversial/Mixed"),
         ("POSITIVE", 0.6, 300, 0, 0, "Controversial/Mixed"),
         ("POSITIVE", 0.6, 700, 0, 0, "Engaging/Neutral"),
         ("POSITIVE", 0.6, 950, 0, 0, "Hype/Positive Impact"),
@@ -64,3 +24,25 @@ def test_compute_vibe_labels(
 ):
     _, label = compute_vibe(sentiment_label, sentiment_score, likes, retweets, replies)
     assert label == expected_label
+
+
+@pytest.mark.parametrize(
+    "likes,retweets,replies",
+    [
+        (None, None, None),
+        (None, 5, 1),
+        (10, None, 1),
+        (10, 5, None),
+    ],
+)
+def test_compute_vibe_accepts_none(likes, retweets, replies):
+    score_none, label_none = compute_vibe("POSITIVE", 0.5, likes, retweets, replies)
+    score_zero, label_zero = compute_vibe(
+        "POSITIVE",
+        0.5,
+        0 if likes is None else likes,
+        0 if retweets is None else retweets,
+        0 if replies is None else replies,
+    )
+    assert score_none == score_zero
+    assert label_none == label_zero
