@@ -10,6 +10,8 @@ def compute_vibe(
     replies: Optional[int] = None,
 ) -> Tuple[float, str]:
     """Compute a simplified vibe score from sentiment and engagement."""
+    # Normalize engagement counts so that missing or negative values don't
+    # artificially lower the vibe score.
     likes = max(0, likes or 0)
     retweets = max(0, retweets or 0)
     replies = max(0, replies or 0)
