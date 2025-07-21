@@ -141,8 +141,8 @@ def init_db():
             analysis JSON,
             approved BOOLEAN,
             source TEXT DEFAULT 'twitter',
-            entities JSON,  # Expanded for mentions/hashtags
-            geo JSON  # For location if available
+            entities JSON,  -- Expanded for mentions/hashtags
+            geo JSON  -- For location if available
         )
     ''')
     cur.execute('CREATE INDEX IF NOT EXISTS idx_tweets_created_at ON tweets (created_at DESC);')  # Optimized for time series
@@ -159,7 +159,7 @@ def init_db():
             sentiment_label TEXT,
             sentiment_score FLOAT,
             source TEXT DEFAULT 'reddit',
-            comments INTEGER,  # Expanded
+            comments INTEGER,  -- Expanded
             author TEXT
         )
     ''')
@@ -175,8 +175,8 @@ def init_db():
             close REAL,
             volume INTEGER,
             type TEXT,
-            adjusted_close REAL,  # Expanded for dividends/splits
-            market_cap REAL,  # Expanded
+            adjusted_close REAL,  -- Expanded for dividends/splits
+            market_cap REAL,  -- Expanded
             PRIMARY KEY (ticker, date)
         )
     ''')
@@ -190,7 +190,7 @@ def init_db():
             text TEXT,
             sentiment TEXT,
             source TEXT DEFAULT 'stocktwits',
-            likes INTEGER,  # Expanded
+            likes INTEGER,  -- Expanded
             conversation_id TEXT
         )
     ''')
@@ -205,7 +205,7 @@ def init_db():
             from_addr TEXT,
             to_addr TEXT,
             source TEXT,
-            block_number INTEGER,  # Expanded
+            block_number INTEGER,  -- Expanded
             gas_used REAL
         )
     ''')
@@ -219,7 +219,7 @@ def init_db():
             funding_rate REAL,
             long_oi REAL,
             short_oi REAL,
-            oi_total REAL,  # Expanded
+            oi_total REAL,  -- Expanded
             volume_24h REAL,
             PRIMARY KEY (exchange, symbol, timestamp)
         )
@@ -233,7 +233,7 @@ def init_db():
             timestamp TEXT,
             bids JSON,
             asks JSON,
-            bid_volume REAL,  # Expanded summary
+            bid_volume REAL,  -- Expanded summary
             ask_volume REAL,
             PRIMARY KEY (exchange, symbol, timestamp)
         )
@@ -248,7 +248,7 @@ def init_db():
             slow_gas REAL,
             base_fee REAL,
             source TEXT,
-            priority_fee REAL,  # Expanded
+            priority_fee REAL,  -- Expanded
             gas_limit INTEGER
         )
     ''')
@@ -263,7 +263,7 @@ def init_db():
             var_forecast JSON,
             topics JSON,
             anomalies JSON,
-            kendall_results JSON,  # Expanded
+            kendall_results JSON,  -- Expanded
             p_values JSON
         )
     ''')
@@ -274,7 +274,7 @@ def init_db():
             run_time TEXT,
             strategy TEXT,
             results JSON,
-            parameters JSON,  # Expanded
+            parameters JSON,  -- Expanded
             performance_metrics JSON
         )
     ''')
@@ -285,9 +285,9 @@ def init_db():
             date TEXT,
             value REAL,
             source TEXT,
-            unit TEXT,  # Expanded
+            unit TEXT,  -- Expanded
             country TEXT,
-            frequency TEXT,  # e.g., daily/monthly
+            frequency TEXT,  -- e.g., daily/monthly
             PRIMARY KEY (series, date, source)
         )
     ''')
