@@ -1,3 +1,10 @@
+"""Configuration helper utilities.
+
+The module loads environment variables from a ``.env`` file when
+``python-dotenv`` is available and exposes :func:`get_config` to retrieve
+configuration values with optional defaults.
+"""
+
 import os
 from typing import Optional
 from pathlib import Path
