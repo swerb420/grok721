@@ -1,3 +1,5 @@
+"""Expanded pipeline with advanced analytics and approval workflow."""
+
 import os
 import json
 import time
@@ -96,6 +98,7 @@ db_lock = threading.Lock()
 
 
 def compute_sentiment(text):
+    """Return sentiment label and score for given text."""
     if not text or not isinstance(text, str):
         logging.warning("Invalid text for sentiment, returning default")
         return "NEUTRAL", 0.5
@@ -107,6 +110,7 @@ def compute_sentiment(text):
         return "NEUTRAL", 0.5
 
 def analyze_visual(image_url, tweet_text):
+    """Perform basic visual analysis on an image."""
     try:
         response = requests.get(image_url, stream=True)
         if response.status_code == 200:
@@ -123,6 +127,7 @@ def analyze_visual(image_url, tweet_text):
     return analysis
 
 def send_for_approval(bot, tweet_id, tweet_text, analysis):
+    """Send tweet content and analysis to Telegram for approval."""
     try:
         markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("Approve", callback_data=f"approve_{tweet_id}"),
@@ -135,6 +140,7 @@ def send_for_approval(bot, tweet_id, tweet_text, analysis):
         logging.error(f"Telegram send error: {e}")
 
 def retry_func(func, *args, **kwargs):
+    """Call *func* with retries and exponential backoff."""
     for attempt in range(MAX_RETRIES):
         try:
             return func(*args, **kwargs)

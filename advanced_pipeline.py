@@ -1,3 +1,5 @@
+"""Advanced pipeline with extensive data sources and modeling."""
+
 import os
 import time
 import datetime

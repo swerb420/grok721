@@ -1,3 +1,5 @@
+"""Ultimate pipeline demonstrating full-scale processing."""
+
 import os
 import json
 import time
