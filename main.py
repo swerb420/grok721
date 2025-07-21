@@ -233,6 +233,7 @@ def update_tweet_analysis(conn: sqlite3.Connection, tweet_id: str, analysis: dic
 
 
 def send_for_approval(bot: Bot, tweet_id: str, text: str, analysis: dict) -> None:
+    """Notify Telegram chat with tweet text and analysis."""
     message = f"Tweet {tweet_id}\n{text}\nAnalysis: {analysis}"
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 

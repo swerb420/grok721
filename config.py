@@ -1,3 +1,5 @@
+"""Configuration helpers for environment-based settings."""
+
 import os
 from typing import Optional
 from pathlib import Path
