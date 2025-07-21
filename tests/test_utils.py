@@ -1,7 +1,7 @@
 import sys
 import types
-import importlib
 import pytest
+from utils import compute_vibe
 
 if 'apify_client' not in sys.modules:
     apify_client = types.ModuleType('apify_client')
@@ -41,9 +41,6 @@ if 'requests' not in sys.modules:
     requests.get = lambda *a, **k: _resp()
     requests.post = lambda *a, **k: _resp()
     sys.modules['requests'] = requests
-
-main = importlib.import_module('main')
-compute_vibe = main.compute_vibe
 
 
 def test_compute_vibe_positive():
