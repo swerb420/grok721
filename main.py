@@ -47,6 +47,8 @@ HISTORICAL_START = "2017-01-01"
 # Minute-level data is only stored for recent history to save space
 HISTORICAL_MINUTE_START = "2022-01-01"
 MINUTE_VALUABLE_SOURCES = ["eodhd", "twelve_data", "dukascopy", "barchart"]
+REQUEST_TIMEOUT = 30  # seconds
+DUNE_MAX_POLL = 60  # Maximum poll attempts (~5 minutes)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -96,6 +98,16 @@ def retry_func(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """Retry helper with exponential backoff."""
     retries = kwargs.pop("retries", MAX_RETRIES)
     base_backoff = kwargs.pop("base_backoff", BASE_BACKOFF)
+    if func in {
+        requests.get,
+        requests.post,
+        requests.put,
+        requests.delete,
+        requests.patch,
+        requests.head,
+        requests.options,
+    }:
+        kwargs.setdefault("timeout", REQUEST_TIMEOUT)
     for attempt in range(retries):
         try:
             return func(*args, **kwargs)
@@ -305,11 +317,14 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
     execution_id = response.json().get("execution_id")
     if execution_id:
         status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
-        while True:
+        for _ in range(DUNE_MAX_POLL):
             state = retry_func(requests.get, status_url, headers=headers).json().get("state")
             if state == "QUERY_STATE_COMPLETED":
                 break
             time.sleep(5)
+        else:
+            logging.warning("Dune query status polling timed out")
+            return
         results_url = f"https://api.dune.com/api/v1/execution/{execution_id}/results"
         response = retry_func(requests.get, results_url, headers=headers)
         rows = response.json().get("rows", [])
