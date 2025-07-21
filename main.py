@@ -16,6 +16,7 @@ import sqlite3
 import logging
 import random
 from typing import Any, Callable
+import requests
 
 from apify_client import ApifyClient
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
@@ -44,14 +45,23 @@ HISTORICAL_START = "2020-01-01"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Machine learning models used for tweet sentiment
-sentiment_analyzer = pipeline(
-    "sentiment-analysis",
-    model="distilbert-base-uncased-finetuned-sst-2-english",
-)
-fintwit_tokenizer = AutoTokenizer.from_pretrained("StephanAkkerman/FinTwitBERT")
-fintwit_model = AutoModelForSequenceClassification.from_pretrained(
-    "StephanAkkerman/FinTwitBERT-sentiment", num_labels=3
-)
+try:
+    sentiment_analyzer = pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english",
+    )
+    fintwit_tokenizer = AutoTokenizer.from_pretrained("StephanAkkerman/FinTwitBERT")
+    fintwit_model = AutoModelForSequenceClassification.from_pretrained(
+        "StephanAkkerman/FinTwitBERT-sentiment", num_labels=3
+    )
+except Exception as exc:  # pragma: no cover - allow running without models
+    logging.warning("Failed to load ML models: %s", exc)
+
+    def sentiment_analyzer(text: str):
+        return [{"label": "NEUTRAL", "score": 0.0}]
+
+    fintwit_tokenizer = None
+    fintwit_model = None
 
 
 def retry_func(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
