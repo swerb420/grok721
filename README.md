@@ -29,14 +29,6 @@ python async_pipeline.py
 The async version uses `aiohttp` for non-blocking requests and stores
 gas price data in a local SQLite database.
 
+## License
 
-## Running the tests
-
-Install the requirements and execute `pytest`:
-
-```bash
-pip install -r requirements.txt
-pytest
-```
-
-The test suite uses stub modules so the optional heavy dependencies are not required.
+This project is licensed under the [MIT License](LICENSE).

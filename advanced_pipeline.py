@@ -39,31 +39,34 @@ from edgar import Company, Filing  # For SEC EDGAR; pip install python-edgar
 from noaa_sdk import NOAA  # For NOAA; pip install noaa-sdk
 from github import Github  # For GitHub; pip install PyGithub
 from imf import IMFData  # For IMF; pip install imfdatapy or similar
+from config import get_config
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log.txt"), logging.StreamHandler()])  # Detailed logging to file and console
 
-# Config - Replace with your actual keys/tokens
-APIFY_TOKEN = "YOUR_APIFY_TOKEN_HERE"
-TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID_HERE"
-ALPHA_VANTAGE_KEY = "YOUR_ALPHA_VANTAGE_KEY_HERE"  # Free at alphavantage.co
-COINGLASS_KEY = "YOUR_COINGLASS_KEY_HERE"  # From coinglass.com/api
-ETHERSCAN_KEY = "YOUR_ETHERSCAN_KEY_HERE"  # From etherscan.io
-DUNE_API_KEY = "YOUR_DUNE_API_KEY_HERE"  # From dune.com
-DUNE_QUERY_ID = "YOUR_DUNE_QUERY_ID_HERE"  # Create query on Dune UI for wallet tx, get ID
-STOCKTWITS_TOKEN = "YOUR_STOCKTWITS_TOKEN_HERE"  # Free signup at developers.stocktwits.com
-GOOGLE_CLOUD_PROJECT = "YOUR_GOOGLE_PROJECT_ID"  # For BigQuery
-FINNHUB_KEY = "YOUR_FINNHUB_KEY_HERE"  # Free at finnhub.io
-POLYGON_KEY = "YOUR_POLYGON_KEY_HERE"  # Free at polygon.io
-FRED_API_KEY = "YOUR_FRED_API_KEY_HERE"  # From api.stlouisfed.org
-NEWSAPI_KEY = "YOUR_NEWSAPI_KEY_HERE"  # From newsapi.org
-OPENEXCHANGE_KEY = "YOUR_OPENEXCHANGE_KEY_HERE"  # Free at openexchangerates.org
-GITHUB_TOKEN = "YOUR_GITHUB_TOKEN_HERE"  # Optional for higher limits
+# Config from environment or .env file
+APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
+TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN", "xxxxxxxxxx:xxxxxxxxxx")
+TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID", "xxxxxxxxxx")
+ALPHA_VANTAGE_KEY = get_config("ALPHA_VANTAGE_KEY", "xxxxxxxxxx")
+COINGLASS_KEY = get_config("COINGLASS_KEY", "xxxxxxxxxx")
+ETHERSCAN_KEY = get_config("ETHERSCAN_KEY", "xxxxxxxxxx")
+DUNE_API_KEY = get_config("DUNE_API_KEY", "xxxxxxxxxx")
+DUNE_QUERY_ID = get_config("DUNE_QUERY_ID", "xxxxxxxxxx")
+STOCKTWITS_TOKEN = get_config("STOCKTWITS_TOKEN", "xxxxxxxxxx")
+GOOGLE_CLOUD_PROJECT = get_config("GOOGLE_CLOUD_PROJECT", "xxxxxxxxxx")
+FINNHUB_KEY = get_config("FINNHUB_KEY", "xxxxxxxxxx")
+POLYGON_KEY = get_config("POLYGON_KEY", "xxxxxxxxxx")
+FRED_API_KEY = get_config("FRED_API_KEY", "xxxxxxxxxx")
+NEWSAPI_KEY = get_config("NEWSAPI_KEY", "xxxxxxxxxx")
+OPENEXCHANGE_KEY = get_config("OPENEXCHANGE_KEY", "xxxxxxxxxx")
+GITHUB_TOKEN = get_config("GITHUB_TOKEN", "xxxxxxxxxx")
 IMF_COUNTRIES = ['USA', 'CHN', 'JPN', 'EUR']  # Expanded
 NOAA_LOCATIONS = [('NYC', 40.7128, -74.0060), ('LON', 51.5074, -0.1278)]  # For weather
 SEC_COMPANIES = ['Tesla Inc', 'MicroStrategy Inc']  # Crypto-related
-DB_FILE = "super_db.db"
-ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+DB_FILE = get_config("DB_FILE", "super_db.db")
+ACTOR_ID = get_config(
+    "ACTOR_ID", "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
+)
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]  # Include tracking accounts
 SELECT_ACCOUNTS = []  # Select accounts for visual analysis, managed via Telegram
 MAX_TWEETS_PER_USER = 10000
