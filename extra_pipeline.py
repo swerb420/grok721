@@ -41,7 +41,6 @@ from lightgbm import LGBMRegressor
 from sklearn.ensemble import VotingRegressor
 import re  # For wallet extraction
 from concurrent.futures import ThreadPoolExecutor, as_completed  # For concurrency
-from config import get_config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
