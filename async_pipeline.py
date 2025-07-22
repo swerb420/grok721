@@ -25,8 +25,9 @@ DB_FILE = get_config("DB_FILE", "super_db.db")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-async def init_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+async def init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cur = conn.cursor()
     cur.execute(
         """
@@ -62,7 +63,11 @@ async def ingest_gas_prices(session: ClientSession, conn: sqlite3.Connection) ->
     cur = conn.cursor()
     url = f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_KEY}"
     result = await fetch_json(session, url)
-    data = result.get("result", {})
+    try:
+        data = result.get("result", {})
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Error parsing Etherscan gas oracle data: %s", exc)
+        data = {}
     timestamp = datetime.datetime.utcnow().isoformat()
     cur.execute(
         """
@@ -84,30 +89,49 @@ async def ingest_gas_prices(session: ClientSession, conn: sqlite3.Connection) ->
     headers = {"x-dune-api-key": DUNE_API_KEY}
     url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/execute"
     execution = await fetch_json(session, url, method="post", headers=headers)
-    exec_id = execution.get("execution_id")
+    try:
+        exec_id = execution.get("execution_id")
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Error parsing Dune execution response: %s", exc)
+        exec_id = None
     if not exec_id:
         return
     status_url = f"https://api.dune.com/api/v1/execution/{exec_id}/status"
     while True:
-        state = (await fetch_json(session, status_url, headers=headers)).get("state")
+        try:
+            state = (await fetch_json(session, status_url, headers=headers)).get("state")
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.error("Error parsing Dune status: %s", exc)
+            break
         if state == "QUERY_STATE_COMPLETED":
             break
         await asyncio.sleep(5)
     results_url = f"https://api.dune.com/api/v1/execution/{exec_id}/results"
     res = await fetch_json(session, results_url, headers=headers)
-    for row in res.get("rows", []):
-        cur.execute(
-            "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
-            (row.get("day", timestamp), row.get("avg_gas_gwei", 0), "dune"),
-        )
+    try:
+        rows = res.get("rows", [])
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Error parsing Dune results: %s", exc)
+        rows = []
+    for row in rows:
+        try:
+            cur.execute(
+                "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
+                (row.get("day", timestamp), row.get("avg_gas_gwei", 0), "dune"),
+            )
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.warning("Error storing Dune row: %s", exc)
     conn.commit()
-    logging.info("Stored %s gas prices from Dune", len(res.get("rows", [])))
+    logging.info("Stored %s gas prices from Dune", len(rows))
 
 
 async def main() -> None:
     conn = await init_db()
-    async with aiohttp.ClientSession() as session:
-        await ingest_gas_prices(session, conn)
+    try:
+        async with aiohttp.ClientSession() as session:
+            await ingest_gas_prices(session, conn)
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
