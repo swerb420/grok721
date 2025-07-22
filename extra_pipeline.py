@@ -572,16 +572,16 @@ def main():
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
             executor.submit(ingest_free_datasets, conn),
-            executor.submit(ingest_wallets, conn),
-            executor.submit(ingest_perps, conn),
-            executor.submit(ingest_order_books, conn),
+            # executor.submit(ingest_wallets, conn),
+            # executor.submit(ingest_perps, conn),
+            # executor.submit(ingest_order_books, conn),
             executor.submit(ingest_gas_prices, conn),
-            executor.submit(ingest_alpha_vantage_economic, conn),
-            executor.submit(ingest_coingecko_crypto, conn),
-            executor.submit(ingest_fred_economic, conn),
-            executor.submit(ingest_newsapi, conn),
-            executor.submit(ingest_quandl, conn),
-            executor.submit(ingest_world_bank, conn)
+            # executor.submit(ingest_alpha_vantage_economic, conn),
+            # executor.submit(ingest_coingecko_crypto, conn),
+            # executor.submit(ingest_fred_economic, conn),
+            # executor.submit(ingest_newsapi, conn),
+            # executor.submit(ingest_quandl, conn),
+            # executor.submit(ingest_world_bank, conn)
         ]
         for future in as_completed(futures):
             try:
@@ -589,30 +589,30 @@ def main():
             except Exception as e:
                 logging.error(f"Ingest thread error: {e}")
     
-    fetch_tweets(client, conn, bot)
-    analyze_patterns(conn)
-    ensemble_prediction(conn)
-    generate_dashboard(conn)
-    time_series_plots(conn)
-    export_for_finetuning(conn)
-    backtest_strategies(conn)
+    # fetch_tweets(client, conn, bot)
+    # analyze_patterns(conn)
+    # ensemble_prediction(conn)
+    # generate_dashboard(conn)
+    # time_series_plots(conn)
+    # export_for_finetuning(conn)
+    # backtest_strategies(conn)
     
     scheduler = BackgroundScheduler(max_workers=5)
-    scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, misfire_grace_time=3600)  # Grace for delays
-    scheduler.add_job(lambda: ingest_wallets(conn), 'cron', hour=3)
-    scheduler.add_job(lambda: ingest_perps(conn), 'cron', hour=4)
-    scheduler.add_job(lambda: ingest_order_books(conn), 'cron', hour=5)
+    # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, misfire_grace_time=3600)
+    # scheduler.add_job(lambda: ingest_wallets(conn), 'cron', hour=3)
+    # scheduler.add_job(lambda: ingest_perps(conn), 'cron', hour=4)
+    # scheduler.add_job(lambda: ingest_order_books(conn), 'cron', hour=5)
     scheduler.add_job(lambda: ingest_gas_prices(conn), 'cron', hour=6)
-    scheduler.add_job(lambda: ingest_alpha_vantage_economic(conn), 'cron', hour=7)
-    scheduler.add_job(lambda: ingest_coingecko_crypto(conn), 'cron', hour=8)
-    scheduler.add_job(lambda: ingest_fred_economic(conn), 'cron', hour=9)
-    scheduler.add_job(lambda: ingest_newsapi(conn), 'cron', hour=10)
-    scheduler.add_job(lambda: ingest_quandl(conn), 'cron', hour=11)
-    scheduler.add_job(lambda: ingest_world_bank(conn), 'cron', hour=12)
-    scheduler.add_job(lambda: analyze_patterns(conn), 'cron', hour=2)
-    scheduler.add_job(lambda: ensemble_prediction(conn), 'cron', hour=13)
-    scheduler.add_job(lambda: generate_dashboard(conn), 'cron', hour=14)
-    scheduler.add_job(lambda: time_series_plots(conn), 'cron', hour=15)
+    # scheduler.add_job(lambda: ingest_alpha_vantage_economic(conn), 'cron', hour=7)
+    # scheduler.add_job(lambda: ingest_coingecko_crypto(conn), 'cron', hour=8)
+    # scheduler.add_job(lambda: ingest_fred_economic(conn), 'cron', hour=9)
+    # scheduler.add_job(lambda: ingest_newsapi(conn), 'cron', hour=10)
+    # scheduler.add_job(lambda: ingest_quandl(conn), 'cron', hour=11)
+    # scheduler.add_job(lambda: ingest_world_bank(conn), 'cron', hour=12)
+    # scheduler.add_job(lambda: analyze_patterns(conn), 'cron', hour=2)
+    # scheduler.add_job(lambda: ensemble_prediction(conn), 'cron', hour=13)
+    # scheduler.add_job(lambda: generate_dashboard(conn), 'cron', hour=14)
+    # scheduler.add_job(lambda: time_series_plots(conn), 'cron', hour=15)
     scheduler.start()
     
     updater.idle()
