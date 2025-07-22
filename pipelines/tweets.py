@@ -5,7 +5,10 @@ import datetime
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, List
+from typing import Any, Callable, Iterable, List
+
+import random
+import time
 
 import sqlite3
 from apify_client import ApifyClient
@@ -129,6 +132,23 @@ def monitor_costs(client: ApifyClient) -> None:
         logging.warning("Unable to fetch Apify usage info: %s", exc)
 
 
+def iterate_with_retry(
+    iter_func: Callable[[], Iterable[Any]], *, retries: int = 5, base_backoff: float = 1.0
+) -> Iterable[Any]:
+    """Yield items from ``iter_func`` with simple retry logic."""
+    for attempt in range(retries):
+        try:
+            for item in iter_func():
+                yield item
+            return
+        except Exception as exc:  # pragma: no cover - depends on runtime errors
+            if attempt >= retries - 1:
+                raise
+            wait = base_backoff * (2 ** attempt) + random.random()
+            logging.warning("Retry %s/%s after iteration error: %s", attempt + 1, retries, exc)
+            time.sleep(wait)
+
+
 def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> None:
     """Fetch tweets via Apify actor and store them in the database."""
     input_data = {
@@ -143,7 +163,7 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
     except Exception as exc:  # pragma: no cover - best effort logging
         logging.error("Error parsing Apify run result: %s", exc)
         return
-    for item in retry_func(client.dataset(dataset_id).iterate_items):
+    for item in iterate_with_retry(lambda: client.dataset(dataset_id).iterate_items()):
         try:
             store_tweet(conn, item)
         except Exception as exc:  # pragma: no cover - best effort logging
