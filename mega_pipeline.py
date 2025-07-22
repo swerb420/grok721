@@ -119,8 +119,9 @@ fintwit_model = AutoModelForSequenceClassification.from_pretrained("StephanAkker
 # Lock for DB concurrency
 db_lock = threading.Lock()
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=120, isolation_level=None)  # Auto-commit, longer timeout
+def init_db(conn: sqlite3.Connection | None = None):
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=120, isolation_level=None)  # Auto-commit, longer timeout
     cur = conn.cursor()
     cur.execute('PRAGMA journal_mode=WAL;')
     cur.execute('PRAGMA synchronous = NORMAL;')
@@ -425,20 +426,21 @@ def ingest_barchart(conn):
 # main with max concurrency, error recovery
 def main():
     client = ApifyClient(APIFY_TOKEN, max_retries=5, timeout_secs=300)
-    conn = init_db()
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-    dispatcher.add_handler(CallbackQueryHandler(approval_handler))
-    dispatcher.add_handler(CommandHandler('add', add_account))
-    dispatcher.add_handler(CommandHandler('remove', remove_account))
-    dispatcher.add_handler(CommandHandler('list', list_accounts))
-    updater.start_polling()
-    
-    ingest_functions = [
-        ingest_free_datasets,
-        # ingest_wallets,
-        # ingest_perps,
+    with sqlite3.connect(DB_FILE, check_same_thread=False, timeout=120, isolation_level=None) as conn:
+        init_db(conn)
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+        dispatcher = updater.dispatcher
+        dispatcher.add_handler(CallbackQueryHandler(approval_handler))
+        dispatcher.add_handler(CommandHandler('add', add_account))
+        dispatcher.add_handler(CommandHandler('remove', remove_account))
+        dispatcher.add_handler(CommandHandler('list', list_accounts))
+        updater.start_polling()
+
+        ingest_functions = [
+            ingest_free_datasets,
+            # ingest_wallets,
+            # ingest_perps,
         # ingest_order_books,
         ingest_gas_prices,
         # ingest_alpha_vantage_economic,
@@ -462,31 +464,30 @@ def main():
         ingest_twelve_data,
         ingest_dukascopy,
         ingest_barchart,
-    ]
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(func, conn) for func in ingest_functions]
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                logging.error(f"Ingest function error, continuing: {e}")
+        ]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(func, conn) for func in ingest_functions]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.error(f"Ingest function error, continuing: {e}")
 
-    # fetch_tweets(client, conn, bot)
-    # analyze_patterns(conn)
-    # ensemble_prediction(conn)
-    # generate_dashboard(conn)
-    # time_series_plots(conn)
-    # export_for_finetuning(conn)
-    # backtest_strategies(conn)
+        # fetch_tweets(client, conn, bot)
+        # analyze_patterns(conn)
+        # ensemble_prediction(conn)
+        # generate_dashboard(conn)
+        # time_series_plots(conn)
+        # export_for_finetuning(conn)
+        # backtest_strategies(conn)
     
-    scheduler = BackgroundScheduler(max_workers=15, daemon=True)
-    # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, jitter=120, misfire_grace_time=10800)
-    # Add jobs for all ingests
-    scheduler.start()
-    
-    updater.idle()
-    conn.execute('PRAGMA optimize;')  # Optimize on exit
-    conn.close()
+        scheduler = BackgroundScheduler(max_workers=15, daemon=True)
+        # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, jitter=120, misfire_grace_time=10800)
+        # Add jobs for all ingests
+        scheduler.start()
+
+        updater.idle()
+        conn.execute('PRAGMA optimize;')  # Optimize on exit
 
 if __name__ == "__main__":
     main()
