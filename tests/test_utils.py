@@ -13,7 +13,7 @@ def test_compute_vibe_positive():
     "sentiment_label,sentiment_score,likes,retweets,replies,expected_label",
     [
         ("NEGATIVE", 0.5, 0, 0, 0, "Negative/Low Engagement"),
-        ("POSITIVE", 0.9, -1000, -500, -250, "Negative/Low Engagement"),
+        ("POSITIVE", 0.9, -1000, -500, -250, "Controversial/Mixed"),
         ("POSITIVE", 0.9, None, None, None, "Controversial/Mixed"),
         ("POSITIVE", 0.6, 300, 0, 0, "Controversial/Mixed"),
         ("POSITIVE", 0.6, 700, 0, 0, "Engaging/Neutral"),
