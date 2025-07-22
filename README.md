@@ -80,6 +80,15 @@ root:
 pytest -q
 ```
 
+## Docker
+
+Build a container image that runs the async pipeline:
+
+```bash
+docker build -t grok721 .
+docker run --rm --env-file .env grok721
+```
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
