@@ -30,6 +30,8 @@ def compute_vibe(
         vibe_label = "Controversial/Mixed"
     else:
         vibe_label = "Negative/Low Engagement"
+    if has_negative:
+        vibe_label = "Negative/Low Engagement"
     return vibe_score, vibe_label
 
 
