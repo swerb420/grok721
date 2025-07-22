@@ -16,6 +16,17 @@ the pipelines can be found in [docs/dune_dashboards.md](docs/dune_dashboards.md)
 
 ## Dependencies
 
+Create and activate a local virtual environment before installing
+the requirements:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Using a virtual environment helps keep dependencies isolated on macOS and
+prevents conflicts with system packages.
+
 The `requirements.txt` file now contains only the minimal packages needed to
 run `main.py` and `async_pipeline.py`.
 Install these core dependencies first:
