@@ -40,3 +40,34 @@ def test_store_tweet_inserts(monkeypatch, tweets_module, db_module):
 
     assert tweet.text == item["text"]
 
+
+def test_store_tweet_sentiment_failure(monkeypatch, tweets_module, db_module):
+    conn = setup_in_memory_db(monkeypatch, db_module)
+
+    def fail_analyzer(text):
+        raise RuntimeError("model boom")
+
+    monkeypatch.setattr(tweets_module, "sentiment_analyzer", fail_analyzer)
+
+    item = {
+        "id": "124",
+        "user": {"username": "bob"},
+        "created_at": "2023-01-02T00:00:00Z",
+        "text": "bad news",
+        "favorite_count": 5,
+        "retweet_count": 1,
+        "reply_count": 0,
+        "media": [],
+    }
+
+    tweet = tweets_module.store_tweet(conn, item)
+
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT sentiment_label, sentiment_score FROM tweets WHERE id=?",
+        ("124",),
+    ).fetchone()
+
+    assert row == ("NEUTRAL", 0.0)
+    assert tweet.text == item["text"]
+
