@@ -11,6 +11,9 @@ This repository contains several example data pipeline scripts. `main.py` provid
 - `ultimate_pipeline.py` – maximal demonstration combining all features.
 - `untrimmed_pipeline.py` – raw variant containing the full import stack.
 
+Additional resources describing the Dune Analytics dashboards referenced by
+the pipelines can be found in [docs/dune_dashboards.md](docs/dune_dashboards.md).
+
 ## Dependencies
 
 Install the base requirements for the lightweight scripts:
