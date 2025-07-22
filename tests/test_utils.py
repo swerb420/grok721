@@ -1,6 +1,6 @@
 import types
 import pytest
-from utils import compute_vibe, fetch_with_fallback
+from utils import compute_vibe, fetch_with_fallback, intervals_for_source
 
 
 def test_compute_vibe_positive():
@@ -79,3 +79,9 @@ def test_fetch_with_fallback_failure(monkeypatch):
 
     with pytest.raises(DummyError):
         fetch_with_fallback(always_fail, pause=0)
+
+
+def test_intervals_for_source():
+    vs = ["src1"]
+    assert intervals_for_source("src1", vs) == ["1min", "5min", "1h"]
+    assert intervals_for_source("src2", vs) == ["1h", "1d"]
