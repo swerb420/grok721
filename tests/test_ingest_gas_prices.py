@@ -17,37 +17,18 @@ def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, gas_module, 
 
     def dummy_get(url, *a, **kw):
         if 'gaschart' in url:
-            return types.SimpleNamespace(
-                json=lambda: {'result': [{'unixTimeStamp': '1', 'gasPrice': '42'}]},
-                raise_for_status=lambda: None,
-            )
+            return types.SimpleNamespace(json=lambda: {'result': [{'unixTimeStamp': '1', 'gasPrice': '42'}]}, raise_for_status=lambda: None)
         if 'gasoracle' in url:
-            return types.SimpleNamespace(
-                json=lambda: {
-                    'result': {
-                        'FastGasPrice': '10',
-                        'ProposeGasPrice': '12',
-                        'SafeGasPrice': '8',
-                        'LastBlock': '123',
-                    }
-                },
-                raise_for_status=lambda: None,
-            )
+            return types.SimpleNamespace(json=lambda: {'result': {'FastGasPrice': '10', 'ProposeGasPrice': '12', 'SafeGasPrice': '8', 'LastBlock': '123'}}, raise_for_status=lambda: None)
         if 'status' in url:
-            return types.SimpleNamespace(
-                json=lambda: {'state': 'QUERY_STATE_COMPLETED'},
-                raise_for_status=lambda: None,
-            )
+            return types.SimpleNamespace(json=lambda: {'state': 'QUERY_STATE_COMPLETED'}, raise_for_status=lambda: None)
         if 'results' in url:
-            return types.SimpleNamespace(
-                json=lambda: {'rows': [{'day': '2023-01-01', 'avg_gas_gwei': 30}]},
-                raise_for_status=lambda: None,
-            )
+            return types.SimpleNamespace(json=lambda: {'rows': [{'day': '2023-01-01', 'avg_gas_gwei': 30}]}, raise_for_status=lambda: None)
         raise AssertionError(f'Unexpected GET {url}')
 
     def dummy_post(url, *a, **kw):
         if 'execute' in url:
-            return types.SimpleNamespace(json=lambda: {'execution_id': 'xyz'})
+            return types.SimpleNamespace(json=lambda: {'execution_id': 'xyz'}, raise_for_status=lambda: None)
         raise AssertionError(f'Unexpected POST {url}')
 
     monkeypatch.setattr(gas_module.requests, 'get', dummy_get)
