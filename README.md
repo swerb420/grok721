@@ -55,6 +55,8 @@ DUNE_AIRDROPS_WALLETS_QUERY_ID
 DUNE_SMART_WALLET_FINDER_QUERY_ID
 DUNE_WALLET_BALANCES_QUERY_ID
 ```
+The `HISTORICAL_START` variable controls how far back tweets are fetched and
+defaults to `2017-01-01`.
 Refer to `.env.example` for the complete list of supported variables.
 
 ## Running the async pipeline

@@ -28,23 +28,37 @@ from .gas import retry_func
 def iterate_with_retry(client: ApifyClient, dataset_id: str):
     """Yield dataset items, retrying on transient errors."""
     offset = 0
+    supports_offset = True
     while True:
-        iterator = retry_func(client.dataset(dataset_id).iterate_items, offset=offset)
+        try:
+            if supports_offset:
+                iterator = retry_func(
+                    client.dataset(dataset_id).iterate_items,
+                    offset=offset,
+                )
+            else:
+                iterator = retry_func(client.dataset(dataset_id).iterate_items)
+        except TypeError:
+            supports_offset = False
+            iterator = retry_func(client.dataset(dataset_id).iterate_items)
         got_any = False
         try:
             for item in iterator:
                 got_any = True
-                offset += 1
+                if supports_offset:
+                    offset += 1
                 yield item
         except Exception as exc:  # pragma: no cover - best effort logging
             logging.warning("Dataset iteration failed: %s", exc)
             continue
+        if not supports_offset:
+            break
         if not got_any:
             break
 
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
 MAX_TWEETS_PER_USER = 1000
-HISTORICAL_START = "2017-01-01"
+HISTORICAL_START = get_config("HISTORICAL_START", "2017-01-01")
 
 APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
 TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN", "xxxxxxxxxx:xxxxxxxxxx")
@@ -155,7 +169,7 @@ def monitor_costs(client: ApifyClient) -> None:
         logging.warning("Unable to fetch Apify usage info: %s", exc)
 
 
-def iterate_with_retry(
+def iterate_with_retry_func(
     iter_func: Callable[[], Iterable[Any]], *, retries: int = 5, base_backoff: float = 1.0
 ) -> Iterable[Any]:
     """Yield items from ``iter_func`` with simple retry logic."""
