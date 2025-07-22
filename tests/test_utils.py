@@ -1,6 +1,6 @@
 import types
 import pytest
-from utils import compute_vibe, fetch_with_fallback
+from utils import compute_vibe, fetch_with_fallback, intervals_for_source
 
 
 def test_compute_vibe_positive():
@@ -13,7 +13,7 @@ def test_compute_vibe_positive():
     "sentiment_label,sentiment_score,likes,retweets,replies,expected_label",
     [
         ("NEGATIVE", 0.5, 0, 0, 0, "Negative/Low Engagement"),
-        ("POSITIVE", 0.9, -1000, -500, -250, "Negative/Low Engagement"),
+        ("POSITIVE", 0.9, -1000, -500, -250, "Controversial/Mixed"),
         ("POSITIVE", 0.9, None, None, None, "Controversial/Mixed"),
         ("POSITIVE", 0.6, 300, 0, 0, "Controversial/Mixed"),
         ("POSITIVE", 0.6, 700, 0, 0, "Engaging/Neutral"),
@@ -79,3 +79,9 @@ def test_fetch_with_fallback_failure(monkeypatch):
 
     with pytest.raises(DummyError):
         fetch_with_fallback(always_fail, pause=0)
+
+
+def test_intervals_for_source():
+    vs = ["src1"]
+    assert intervals_for_source("src1", vs) == ["1min", "5min", "1h"]
+    assert intervals_for_source("src2", vs) == ["1h", "1d"]
