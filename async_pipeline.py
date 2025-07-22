@@ -106,8 +106,11 @@ async def ingest_gas_prices(session: ClientSession, conn: sqlite3.Connection) ->
 
 async def main() -> None:
     conn = await init_db()
-    async with aiohttp.ClientSession() as session:
-        await ingest_gas_prices(session, conn)
+    try:
+        async with aiohttp.ClientSession() as session:
+            await ingest_gas_prices(session, conn)
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
