@@ -58,3 +58,23 @@ def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, gas_module, 
     dune = data['dune']
     assert dune[2] == 30
 
+
+def test_ingest_gas_prices_http_error(monkeypatch: pytest.MonkeyPatch, gas_module, db_module):
+    """HTTP errors from Etherscan should propagate."""
+    conn = setup_in_memory_db(monkeypatch, db_module)
+
+    class DummyError(Exception):
+        pass
+
+    class DummyResponse:
+        def raise_for_status(self):
+            raise DummyError("500 Server Error")
+
+        def json(self):  # pragma: no cover - not used
+            return {}
+
+    monkeypatch.setattr(gas_module, "retry_func", lambda *a, **k: DummyResponse())
+
+    with pytest.raises(DummyError):
+        gas_module.ingest_gas_prices(conn)
+
