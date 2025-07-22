@@ -43,7 +43,7 @@ def iterate_with_retry(client: ApifyClient, dataset_id: str):
             break
 
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
-MAX_TWEETS_PER_USER = 1000
+MAX_TWEETS_PER_USER = int(get_config("MAX_TWEETS_PER_USER", "1000"))
 HISTORICAL_START = "2017-01-01"
 
 APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
@@ -155,7 +155,7 @@ def monitor_costs(client: ApifyClient) -> None:
         logging.warning("Unable to fetch Apify usage info: %s", exc)
 
 
-def iterate_with_retry(
+def iterate_with_retry_func(
     iter_func: Callable[[], Iterable[Any]], *, retries: int = 5, base_backoff: float = 1.0
 ) -> Iterable[Any]:
     """Yield items from ``iter_func`` with simple retry logic."""
@@ -186,7 +186,7 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
     except Exception as exc:  # pragma: no cover - best effort logging
         logging.error("Error parsing Apify run result: %s", exc)
         return
-    for item in iterate_with_retry(client, dataset_id):
+    for item in iterate_with_retry_func(lambda: client.dataset(dataset_id).iterate_items()):
         try:
             store_tweet(conn, item)
         except Exception as exc:  # pragma: no cover - best effort logging
