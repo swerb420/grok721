@@ -4,6 +4,7 @@ from .db import init_db
 from .gas import ingest_gas_prices
 from .tweets import fetch_tweets, store_tweet
 from .dune import execute_dune_query, store_dune_rows
+from .options import ingest_yfinance_options
 
 __all__ = [
     "init_db",
@@ -12,4 +13,5 @@ __all__ = [
     "store_tweet",
     "execute_dune_query",
     "store_dune_rows",
+    "ingest_yfinance_options",
 ]

@@ -1,6 +1,6 @@
 # grok721
 
-This repository contains several example data pipeline scripts. `main.py` provides a minimal workflow that ingests gas prices and tweets. The other modules showcase progressively more complex pipelines and are meant as reference implementations.
+This repository contains several example data pipeline scripts. `main.py` provides a minimal workflow that ingests gas prices, tweets and basic stock option chains. The other modules showcase progressively more complex pipelines and are meant as reference implementations.
 
 ## Pipeline overview
 - `main.py` – basic ingestion example.
@@ -10,6 +10,7 @@ This repository contains several example data pipeline scripts. `main.py` provid
 - `mega_pipeline.py` – **experimental** build with numerous sources.
 - `ultimate_pipeline.py` – **experimental** maximal demonstration.
 - `untrimmed_pipeline.py` – **experimental** raw variant with the full import stack.
+- `ingest_yfinance_options` – helper for storing basic stock option chains.
 
 Additional resources describing the Dune Analytics dashboards referenced by
 the pipelines can be found in [docs/dune_dashboards.md](docs/dune_dashboards.md).

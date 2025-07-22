@@ -68,6 +68,22 @@ def init_db(conn: Optional[sqlite3.Connection] = None) -> sqlite3.Connection:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS stock_options (
+            ticker TEXT,
+            option_type TEXT,
+            expiration TEXT,
+            strike REAL,
+            last_price REAL,
+            implied_vol REAL,
+            open_interest INTEGER,
+            volume INTEGER,
+            fetch_time TEXT,
+            PRIMARY KEY (ticker, option_type, expiration, strike)
+        )
+        """
+    )
     cur.execute("PRAGMA journal_mode=WAL;")
     conn.commit()
     return conn
