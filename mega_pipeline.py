@@ -250,11 +250,24 @@ def ingest_financial_modeling_prep(conn):
 
 def ingest_eod_historical(conn):
     eod = eodhd.EODHD(EODHD_KEY)
+    minute_enabled = "eodhd" in MINUTE_VALUABLE_SOURCES
     for ticker in EODHD_TICKERS:
         try:
-            historical = eod.get_historical_data(ticker, start=HISTORICAL_START, end=datetime.datetime.now().strftime('%Y-%m-%d'))
+            historical = eod.get_historical_data(
+                ticker,
+                start=HISTORICAL_START,
+                end=datetime.datetime.now().strftime('%Y-%m-%d'),
+            )
             fundamentals = eod.get_fundamentals(ticker)
-            intraday = fetch_with_fallback(eod.get_intraday_data, ticker=ticker, count=5000, start_date=HISTORICAL_MINUTE_START)
+            if minute_enabled:
+                intraday = fetch_with_fallback(
+                    eod.get_intraday_data,
+                    ticker=ticker,
+                    count=5000,
+                    start_date=HISTORICAL_MINUTE_START,
+                )
+            else:
+                intraday = []  # fallback to daily only
             df_hist = pd.DataFrame(historical)
             df_fund = pd.DataFrame([fundamentals]) if isinstance(fundamentals, dict) else pd.DataFrame(fundamentals)
             df_intra = pd.DataFrame(intraday)
@@ -288,9 +301,26 @@ def ingest_eod_historical(conn):
 
 def ingest_twelve_data(conn):
     td = TDClient(apikey=TWELVE_DATA_KEY)
+    minute_enabled = "twelve_data" in MINUTE_VALUABLE_SOURCES
     for symbol in TWELVE_DATA_SYMBOLS:
         try:
-            time_series = fetch_with_fallback(td.time_series, symbol=symbol, start_date=HISTORICAL_MINUTE_START, end_date=datetime.datetime.now().strftime('%Y-%m-%d'), outputsize=5000)
+            if minute_enabled:
+                time_series = fetch_with_fallback(
+                    td.time_series,
+                    symbol=symbol,
+                    start_date=HISTORICAL_MINUTE_START,
+                    end_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+                    outputsize=5000,
+                )
+            else:
+                time_series = fetch_with_fallback(
+                    td.time_series,
+                    symbol=symbol,
+                    interval="1h",
+                    start_date=HISTORICAL_START,
+                    end_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+                    outputsize=5000,
+                )
             time_series = time_series.as_pandas()
             fundamentals = td.fundamentals(symbol=symbol).as_pandas()
             quote = td.quote(symbol=symbol).as_dict()
@@ -323,16 +353,31 @@ def ingest_twelve_data(conn):
         time.sleep(1.5)
 
 def ingest_dukascopy(conn):
+    minute_enabled = "dukascopy" in MINUTE_VALUABLE_SOURCES
     for pair in DUKASCOPY_PAIRS:
         try:
-            df = fetch_with_fallback(
-                pydukascopy.get_historical_data,
-                param_name='timeframe',
-                intervals=['M1', 'M5', 'H1'],
-                pair=pair,
-                from_date=HISTORICAL_MINUTE_START,
-                to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
-            )
+            if minute_enabled:
+                try:
+                    df = pydukascopy.get_historical_data(
+                        pair,
+                        from_date=HISTORICAL_MINUTE_START,
+                        to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+                        timeframe='M1',
+                    )
+                except Exception:
+                    df = pydukascopy.get_historical_data(
+                        pair,
+                        from_date=HISTORICAL_MINUTE_START,
+                        to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+                        timeframe='M5',
+                    )
+            else:
+                df = pydukascopy.get_historical_data(
+                    pair,
+                    from_date=HISTORICAL_START,
+                    to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+                    timeframe='H1',
+                )
             df = df.dropna(subset=['Close', 'Volume']).sort_values('Timestamp').drop_duplicates('Timestamp')
             df['date'] = pd.to_datetime(df['Timestamp']).dt.isoformat()
             df['adjusted_close'] = df['Close']
@@ -353,19 +398,40 @@ def ingest_dukascopy(conn):
         time.sleep(3)
 
 def ingest_barchart(conn):
-    client = barchart_ondemand.BarchartOnDemandClient(api_key=BARCHART_KEY, endpoint='https://ondemand.websol.barchart.com')
+    client = barchart_ondemand.BarchartOnDemandClient(
+        api_key=BARCHART_KEY, endpoint='https://ondemand.websol.barchart.com'
+    )
+    minute_enabled = "barchart" in MINUTE_VALUABLE_SOURCES
     for symbol in BARCHART_SYMBOLS:
         try:
-            historical = fetch_with_fallback(
-                client.get_history,
-                param_name='interval',
-                intervals=[1, 5, 60],
-                symbol=symbol,
-                type='intraday',
-                start=HISTORICAL_MINUTE_START,
-                maxRecords=10000,
-                order='asc',
-            )
+            if minute_enabled:
+                try:
+                    historical = client.get_history(
+                        symbol,
+                        type='intraday',
+                        start=HISTORICAL_MINUTE_START,
+                        maxRecords=10000,
+                        order='asc',
+                        interval=1,
+                    )
+                except Exception:
+                    historical = client.get_history(
+                        symbol,
+                        type='intraday',
+                        start=HISTORICAL_MINUTE_START,
+                        maxRecords=10000,
+                        order='asc',
+                        interval=5,
+                    )
+            else:
+                historical = client.get_history(
+                    symbol,
+                    type='intraday',
+                    start=HISTORICAL_START,
+                    maxRecords=10000,
+                    order='asc',
+                    interval=60,
+                )
             df = pd.DataFrame(historical['results'])
             df = df.dropna(subset=['close', 'volume']).sort_values('timestamp').drop_duplicates('timestamp')
             df['date'] = pd.to_datetime(df['timestamp']).dt.isoformat()
