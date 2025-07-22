@@ -2,16 +2,14 @@
 
 import asyncio
 import datetime
-import json
 import logging
-from dataclasses import asdict
-from typing import List
 
 import aiohttp
 from aiohttp import ClientSession
 
 from config import get_config
-from utils import execute_dune_query
+from pipelines.db import init_db as sync_init_db
+from pipelines.dune import execute_dune_query, store_dune_rows
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 import sqlite3
@@ -37,45 +35,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 
 async def init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
-    if conn is None:
-        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gas_prices (
-            timestamp TEXT PRIMARY KEY,
-            fast_gas REAL,
-            average_gas REAL,
-            slow_gas REAL,
-            base_fee REAL,
-            source TEXT
-        )
-        """
-    )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS dune_results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            query_id TEXT,
-            data TEXT,
-            ingested_at TEXT
-        )
-        """
-    )
-    cur.execute("PRAGMA journal_mode=WAL;")
-    conn.commit()
-    return conn
+    """Initialize the database using the synchronous helper."""
+    return await asyncio.to_thread(sync_init_db, conn)
 
 
 def store_rows(conn: sqlite3.Connection, query_id: str, rows: list[dict]) -> None:
-    cur = conn.cursor()
-    ts = datetime.datetime.utcnow().isoformat()
-    for row in rows:
-        cur.execute(
-            "INSERT INTO dune_results (query_id, data, ingested_at) VALUES (?, ?, ?)",
-            (query_id, json.dumps(row), ts),
-        )
-    conn.commit()
+    """Wrapper around :func:`pipelines.dune.store_dune_rows`."""
+    store_dune_rows(conn, query_id, rows)
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, max=10))

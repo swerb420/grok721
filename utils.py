@@ -99,46 +99,9 @@ def intervals_for_source(source: str, valuable_sources: Iterable[str]) -> List[s
     return ["1h", "1d"]
 
 
-def execute_dune_query(
-    query_id: str,
-    api_key: str,
-    *,
-    max_poll: int = 60,
-    poll_interval: float = 5.0,
-) -> List[dict]:
-    """Execute a Dune query and return rows of results."""
-    if requests is None:
-        raise RuntimeError("requests library not available")
-    headers = {"x-dune-api-key": api_key}
-    url = f"https://api.dune.com/api/v1/query/{query_id}/execute"
-    try:
-        resp = requests.post(url, headers=headers)
-        execution_id = resp.json().get("execution_id")
-    except Exception as exc:  # pragma: no cover - best effort logging
-        logging.error("Failed executing Dune query %s: %s", query_id, exc)
-        return []
-    if not execution_id:
-        return []
+def execute_dune_query(query_id: str, api_key: str, **kwargs: Any) -> List[dict]:
+    """Compatibility wrapper around :mod:`pipelines.dune`."""
+    from pipelines.dune import execute_dune_query as _exec
 
-    status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
-    for _ in range(max_poll):
-        try:
-            state = requests.get(status_url, headers=headers).json().get("state")
-        except Exception as exc:  # pragma: no cover - best effort logging
-            logging.error("Failed polling Dune status: %s", exc)
-            return []
-        if state == "QUERY_STATE_COMPLETED":
-            break
-        time.sleep(poll_interval)
-    else:
-        logging.warning("Dune query %s polling timed out", query_id)
-        return []
-
-    results_url = f"https://api.dune.com/api/v1/execution/{execution_id}/results"
-    try:
-        rows = requests.get(results_url, headers=headers).json().get("rows", [])
-    except Exception as exc:  # pragma: no cover - best effort logging
-        logging.error("Failed fetching Dune results: %s", exc)
-        return []
-    return rows
+    return _exec(query_id, api_key, **kwargs)
 
