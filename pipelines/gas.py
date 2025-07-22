@@ -54,6 +54,7 @@ def ingest_gas_prices(conn) -> None:
     cur = conn.cursor()
     url = f"https://api.etherscan.io/api?module=gastracker&action=gaschart&apikey={ETHERSCAN_KEY}"
     response = retry_func(requests.get, url)
+    response.raise_for_status()
     try:
         result = response.json().get("result", [])
     except Exception as exc:  # pragma: no cover - best effort logging
@@ -75,6 +76,7 @@ def ingest_gas_prices(conn) -> None:
 
     url = f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_KEY}"
     response = retry_func(requests.get, url)
+    response.raise_for_status()
     try:
         result = response.json().get("result", {})
     except Exception as exc:  # pragma: no cover - best effort logging

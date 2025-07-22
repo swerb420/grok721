@@ -17,13 +17,32 @@ def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, gas_module, 
 
     def dummy_get(url, *a, **kw):
         if 'gaschart' in url:
-            return types.SimpleNamespace(json=lambda: {'result': [{'unixTimeStamp': '1', 'gasPrice': '42'}]})
+            return types.SimpleNamespace(
+                json=lambda: {'result': [{'unixTimeStamp': '1', 'gasPrice': '42'}]},
+                raise_for_status=lambda: None,
+            )
         if 'gasoracle' in url:
-            return types.SimpleNamespace(json=lambda: {'result': {'FastGasPrice': '10', 'ProposeGasPrice': '12', 'SafeGasPrice': '8', 'LastBlock': '123'}})
+            return types.SimpleNamespace(
+                json=lambda: {
+                    'result': {
+                        'FastGasPrice': '10',
+                        'ProposeGasPrice': '12',
+                        'SafeGasPrice': '8',
+                        'LastBlock': '123',
+                    }
+                },
+                raise_for_status=lambda: None,
+            )
         if 'status' in url:
-            return types.SimpleNamespace(json=lambda: {'state': 'QUERY_STATE_COMPLETED'})
+            return types.SimpleNamespace(
+                json=lambda: {'state': 'QUERY_STATE_COMPLETED'},
+                raise_for_status=lambda: None,
+            )
         if 'results' in url:
-            return types.SimpleNamespace(json=lambda: {'rows': [{'day': '2023-01-01', 'avg_gas_gwei': 30}]})
+            return types.SimpleNamespace(
+                json=lambda: {'rows': [{'day': '2023-01-01', 'avg_gas_gwei': 30}]},
+                raise_for_status=lambda: None,
+            )
         raise AssertionError(f'Unexpected GET {url}')
 
     def dummy_post(url, *a, **kw):
@@ -57,4 +76,24 @@ def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, gas_module, 
 
     dune = data['dune']
     assert dune[2] == 30
+
+
+def test_ingest_gas_prices_http_error(monkeypatch: pytest.MonkeyPatch, gas_module, db_module):
+    """HTTP errors from Etherscan should propagate."""
+    conn = setup_in_memory_db(monkeypatch, db_module)
+
+    class DummyError(Exception):
+        pass
+
+    class DummyResponse:
+        def raise_for_status(self):
+            raise DummyError("500 Server Error")
+
+        def json(self):  # pragma: no cover - not used
+            return {}
+
+    monkeypatch.setattr(gas_module, "retry_func", lambda *a, **k: DummyResponse())
+
+    with pytest.raises(DummyError):
+        gas_module.ingest_gas_prices(conn)
 
