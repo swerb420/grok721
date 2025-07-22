@@ -229,9 +229,9 @@ def ingest_moralis(conn):
 
 # main with all
 
-def main():
-    """Entry point placeholder."""
-    pass
+# def main():
+#     """Entry point placeholder."""
+#     pass
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

@@ -436,12 +436,32 @@ def main():
     updater.start_polling()
     
     ingest_functions = [
-        ingest_free_datasets, ingest_wallets, ingest_perps, ingest_order_books, ingest_gas_prices,
-        ingest_alpha_vantage_economic, ingest_coingecko_crypto, ingest_fred_economic, ingest_newsapi,
-        ingest_quandl, ingest_world_bank, ingest_yahoo_finance, ingest_cryptocompare, ingest_openexchangerates,
-        ingest_investing_scrape, ingest_census_bureau, ingest_openstreetmap, ingest_sec_edgar, ingest_noaa_climate,
-        ingest_github_repos, ingest_imf, ingest_financial_modeling_prep, ingest_eod_historical, ingest_twelve_data,
-        ingest_dukascopy, ingest_barchart
+        ingest_free_datasets,
+        # ingest_wallets,
+        # ingest_perps,
+        # ingest_order_books,
+        ingest_gas_prices,
+        # ingest_alpha_vantage_economic,
+        # ingest_coingecko_crypto,
+        # ingest_fred_economic,
+        # ingest_newsapi,
+        # ingest_quandl,
+        # ingest_world_bank,
+        ingest_yahoo_finance,
+        # ingest_cryptocompare,
+        # ingest_openexchangerates,
+        # ingest_investing_scrape,
+        # ingest_census_bureau,
+        # ingest_openstreetmap,
+        # ingest_sec_edgar,
+        # ingest_noaa_climate,
+        # ingest_github_repos,
+        # ingest_imf,
+        ingest_financial_modeling_prep,
+        ingest_eod_historical,
+        ingest_twelve_data,
+        ingest_dukascopy,
+        ingest_barchart,
     ]
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(func, conn) for func in ingest_functions]
@@ -451,16 +471,16 @@ def main():
             except Exception as e:
                 logging.error(f"Ingest function error, continuing: {e}")
 
-    fetch_tweets(client, conn, bot)
-    analyze_patterns(conn)
-    ensemble_prediction(conn)
-    generate_dashboard(conn)
-    time_series_plots(conn)
-    export_for_finetuning(conn)
-    backtest_strategies(conn)
+    # fetch_tweets(client, conn, bot)
+    # analyze_patterns(conn)
+    # ensemble_prediction(conn)
+    # generate_dashboard(conn)
+    # time_series_plots(conn)
+    # export_for_finetuning(conn)
+    # backtest_strategies(conn)
     
     scheduler = BackgroundScheduler(max_workers=15, daemon=True)
-    scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, jitter=120, misfire_grace_time=10800)  # Increased jitter/grace
+    # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, jitter=120, misfire_grace_time=10800)
     # Add jobs for all ingests
     scheduler.start()
     
