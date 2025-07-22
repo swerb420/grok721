@@ -19,6 +19,7 @@ def compute_vibe(
     retweets = retweets or 0
     replies = replies or 0
     has_negative = any(x < 0 for x in (likes, retweets, replies))
+
     engagement = (likes + retweets * 2 + replies) / 1000.0
     base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
     vibe_score = (base_score + engagement) * 5
