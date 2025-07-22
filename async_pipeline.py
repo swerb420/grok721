@@ -31,6 +31,7 @@ AIRDROPS_WALLETS_QUERY_ID = get_config("AIRDROPS_WALLETS_QUERY_ID", "0")
 SMART_WALLET_FINDER_QUERY_ID = get_config("SMART_WALLET_FINDER_QUERY_ID", "0")
 WALLET_BALANCES_QUERY_ID = get_config("WALLET_BALANCES_QUERY_ID", "0")
 DB_FILE = get_config("DB_FILE", "super_db.db")
+DUNE_MAX_POLL = 60  # Maximum poll attempts (~5 minutes)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -117,7 +118,12 @@ async def ingest_gas_prices(session: ClientSession, conn: sqlite3.Connection) ->
     conn.commit()
     logging.info("Stored current gas price")
 
-    rows = await asyncio.to_thread(execute_dune_query, DUNE_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        DUNE_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     for row in rows:
         try:
             cur.execute(
@@ -131,55 +137,100 @@ async def ingest_gas_prices(session: ClientSession, conn: sqlite3.Connection) ->
 
 
 async def ingest_hyperliquid_stats(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, HYPERLIQUID_STATS_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        HYPERLIQUID_STATS_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, HYPERLIQUID_STATS_QUERY_ID, rows)
     logging.info("Stored %s Hyperliquid stats rows", len(rows))
 
 
 async def ingest_hyperliquid(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, HYPERLIQUID_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        HYPERLIQUID_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, HYPERLIQUID_QUERY_ID, rows)
     logging.info("Stored %s Hyperliquid rows", len(rows))
 
 
 async def ingest_gmx_analytics(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, GMX_ANALYTICS_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        GMX_ANALYTICS_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, GMX_ANALYTICS_QUERY_ID, rows)
     logging.info("Stored %s GMX analytics rows", len(rows))
 
 
 async def ingest_hyperliquid_flows(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, HYPERLIQUID_FLOWS_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        HYPERLIQUID_FLOWS_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, HYPERLIQUID_FLOWS_QUERY_ID, rows)
     logging.info("Stored %s Hyperliquid flow rows", len(rows))
 
 
 async def ingest_perps_hyperliquid(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, PERPS_HYPERLIQUID_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        PERPS_HYPERLIQUID_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, PERPS_HYPERLIQUID_QUERY_ID, rows)
     logging.info("Stored %s perps/hyperliquid rows", len(rows))
 
 
 async def ingest_gmx_io(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, GMX_IO_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        GMX_IO_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, GMX_IO_QUERY_ID, rows)
     logging.info("Stored %s GMX.io rows", len(rows))
 
 
 async def ingest_airdrops_wallets(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, AIRDROPS_WALLETS_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        AIRDROPS_WALLETS_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, AIRDROPS_WALLETS_QUERY_ID, rows)
     logging.info("Stored %s airdrop wallet rows", len(rows))
 
 
 async def ingest_smart_wallet_finder(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, SMART_WALLET_FINDER_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        SMART_WALLET_FINDER_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, SMART_WALLET_FINDER_QUERY_ID, rows)
     logging.info("Stored %s smart wallet rows", len(rows))
 
 
 async def ingest_wallet_balances(conn: sqlite3.Connection) -> None:
-    rows = await asyncio.to_thread(execute_dune_query, WALLET_BALANCES_QUERY_ID, DUNE_API_KEY)
+    rows = await asyncio.to_thread(
+        execute_dune_query,
+        WALLET_BALANCES_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=DUNE_MAX_POLL,
+    )
     store_rows(conn, WALLET_BALANCES_QUERY_ID, rows)
     logging.info("Stored %s wallet balance rows", len(rows))
 
