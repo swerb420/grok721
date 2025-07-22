@@ -28,7 +28,7 @@ from telegram import Bot
 # not required for the basic workflow implemented below.
 from apscheduler.schedulers.background import BackgroundScheduler
 from config import get_config
-from utils import compute_vibe
+from utils import compute_vibe, execute_dune_query
 
 # Configuration via environment variables or .env file
 APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
@@ -37,6 +37,15 @@ TELEGRAM_CHAT_ID = get_config("TELEGRAM_CHAT_ID", "xxxxxxxxxx")
 ETHERSCAN_KEY = get_config("ETHERSCAN_KEY", "xxxxxxxxxx")
 DUNE_API_KEY = get_config("DUNE_API_KEY", "xxxxxxxxxx")
 DUNE_QUERY_ID = get_config("DUNE_QUERY_ID", "5081617")
+HYPERLIQUID_STATS_QUERY_ID = get_config("HYPERLIQUID_STATS_QUERY_ID", "0")
+HYPERLIQUID_QUERY_ID = get_config("HYPERLIQUID_QUERY_ID", "0")
+GMX_ANALYTICS_QUERY_ID = get_config("GMX_ANALYTICS_QUERY_ID", "0")
+HYPERLIQUID_FLOWS_QUERY_ID = get_config("HYPERLIQUID_FLOWS_QUERY_ID", "0")
+PERPS_HYPERLIQUID_QUERY_ID = get_config("PERPS_HYPERLIQUID_QUERY_ID", "0")
+GMX_IO_QUERY_ID = get_config("GMX_IO_QUERY_ID", "0")
+AIRDROPS_WALLETS_QUERY_ID = get_config("AIRDROPS_WALLETS_QUERY_ID", "0")
+SMART_WALLET_FINDER_QUERY_ID = get_config("SMART_WALLET_FINDER_QUERY_ID", "0")
+WALLET_BALANCES_QUERY_ID = get_config("WALLET_BALANCES_QUERY_ID", "0")
 DB_FILE = get_config("DB_FILE", "super_db.db")
 ACTOR_ID = get_config("ACTOR_ID", "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest")
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
@@ -174,6 +183,16 @@ def init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dune_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query_id TEXT,
+            data TEXT,
+            ingested_at TEXT
+        )
+        """
+    )
     cur.execute("PRAGMA journal_mode=WAL;")
     conn.commit()
     return conn
@@ -266,6 +285,18 @@ def analyze_visual(url: str, text: str):
     return None
 
 
+def store_dune_rows(conn: sqlite3.Connection, query_id: str, rows: list[dict]) -> None:
+    """Store Dune query rows in the generic results table."""
+    cur = conn.cursor()
+    ts = datetime.datetime.utcnow().isoformat()
+    for row in rows:
+        cur.execute(
+            "INSERT INTO dune_results (query_id, data, ingested_at) VALUES (?, ?, ?)",
+            (query_id, json.dumps(row), ts),
+        )
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Data ingestion functions
 # ---------------------------------------------------------------------------
@@ -328,49 +359,74 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
         conn.commit()
         logging.info("Ingested current gas prices")
 
-    # Dune endpoint (simplified execution)
-    headers = {"x-dune-api-key": DUNE_API_KEY}
-    url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/execute"
-    response = retry_func(requests.post, url, headers=headers)
-    try:
-        execution_id = response.json().get("execution_id")
-    except Exception as exc:  # pragma: no cover - best effort logging
-        logging.error("Failed parsing Dune execution response: %s", exc)
-        execution_id = None
-    if execution_id:
-        status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
-        for _ in range(DUNE_MAX_POLL):
-            try:
-                state = retry_func(requests.get, status_url, headers=headers).json().get("state")
-            except Exception as exc:  # pragma: no cover - best effort logging
-                logging.error("Failed parsing Dune status: %s", exc)
-                break
-            if state == "QUERY_STATE_COMPLETED":
-                break
-            time.sleep(5)
-        else:
-            logging.warning("Dune query status polling timed out")
-            return
-        results_url = f"https://api.dune.com/api/v1/execution/{execution_id}/results"
-        response = retry_func(requests.get, results_url, headers=headers)
+    rows = execute_dune_query(DUNE_QUERY_ID, DUNE_API_KEY)
+    for row in rows:
         try:
-            rows = response.json().get("rows", [])
+            timestamp = row.get("day", datetime.datetime.utcnow().isoformat())
+            average_gas = row.get("avg_gas_gwei", 0)
         except Exception as exc:  # pragma: no cover - best effort logging
-            logging.error("Failed parsing Dune results: %s", exc)
-            rows = []
-        for row in rows:
-            try:
-                timestamp = row.get("day", datetime.datetime.utcnow().isoformat())
-                average_gas = row.get("avg_gas_gwei", 0)
-            except Exception as exc:  # pragma: no cover - best effort logging
-                logging.warning("Malformed Dune row: %s", exc)
-                continue
-            cur.execute(
-                "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
-                (timestamp, average_gas, "dune"),
-            )
-        conn.commit()
-        logging.info("Ingested %s gas prices from Dune", len(rows))
+            logging.warning("Malformed Dune row: %s", exc)
+            continue
+        cur.execute(
+            "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
+            (timestamp, average_gas, "dune"),
+        )
+    conn.commit()
+    logging.info("Ingested %s gas prices from Dune", len(rows))
+
+
+def ingest_hyperliquid_stats(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(HYPERLIQUID_STATS_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, HYPERLIQUID_STATS_QUERY_ID, rows)
+    logging.info("Stored %s Hyperliquid stats rows", len(rows))
+
+
+def ingest_hyperliquid(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(HYPERLIQUID_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, HYPERLIQUID_QUERY_ID, rows)
+    logging.info("Stored %s Hyperliquid rows", len(rows))
+
+
+def ingest_gmx_analytics(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(GMX_ANALYTICS_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, GMX_ANALYTICS_QUERY_ID, rows)
+    logging.info("Stored %s GMX analytics rows", len(rows))
+
+
+def ingest_hyperliquid_flows(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(HYPERLIQUID_FLOWS_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, HYPERLIQUID_FLOWS_QUERY_ID, rows)
+    logging.info("Stored %s Hyperliquid flow rows", len(rows))
+
+
+def ingest_perps_hyperliquid(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(PERPS_HYPERLIQUID_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, PERPS_HYPERLIQUID_QUERY_ID, rows)
+    logging.info("Stored %s perps/hyperliquid rows", len(rows))
+
+
+def ingest_gmx_io(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(GMX_IO_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, GMX_IO_QUERY_ID, rows)
+    logging.info("Stored %s GMX.io rows", len(rows))
+
+
+def ingest_airdrops_wallets(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(AIRDROPS_WALLETS_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, AIRDROPS_WALLETS_QUERY_ID, rows)
+    logging.info("Stored %s airdrop wallet rows", len(rows))
+
+
+def ingest_smart_wallet_finder(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(SMART_WALLET_FINDER_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, SMART_WALLET_FINDER_QUERY_ID, rows)
+    logging.info("Stored %s smart wallet rows", len(rows))
+
+
+def ingest_wallet_balances(conn: sqlite3.Connection) -> None:
+    rows = execute_dune_query(WALLET_BALANCES_QUERY_ID, DUNE_API_KEY)
+    store_dune_rows(conn, WALLET_BALANCES_QUERY_ID, rows)
+    logging.info("Stored %s wallet balance rows", len(rows))
 
 
 def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> None:

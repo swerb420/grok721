@@ -2,6 +2,10 @@
 from typing import Tuple, Optional, Callable, Any, List, Iterable
 import time
 import logging
+try:  # pragma: no cover - optional dependency for tests
+    import requests
+except Exception:  # ModuleNotFoundError during tests
+    requests = None  # type: ignore
 
 
 def compute_vibe(
@@ -33,7 +37,7 @@ def compute_vibe(
     else:
         vibe_label = "Negative/Low Engagement"
     if has_negative:
-        vibe_label = "Controversial/Mixed"
+        vibe_label = "Negative/Low Engagement"
     return vibe_score, vibe_label
 
 
@@ -93,4 +97,48 @@ def intervals_for_source(source: str, valuable_sources: Iterable[str]) -> List[s
     if source in valuable_sources:
         return ["1min", "5min", "1h"]
     return ["1h", "1d"]
+
+
+def execute_dune_query(
+    query_id: str,
+    api_key: str,
+    *,
+    max_poll: int = 60,
+    poll_interval: float = 5.0,
+) -> List[dict]:
+    """Execute a Dune query and return rows of results."""
+    if requests is None:
+        raise RuntimeError("requests library not available")
+    headers = {"x-dune-api-key": api_key}
+    url = f"https://api.dune.com/api/v1/query/{query_id}/execute"
+    try:
+        resp = requests.post(url, headers=headers)
+        execution_id = resp.json().get("execution_id")
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Failed executing Dune query %s: %s", query_id, exc)
+        return []
+    if not execution_id:
+        return []
+
+    status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
+    for _ in range(max_poll):
+        try:
+            state = requests.get(status_url, headers=headers).json().get("state")
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.error("Failed polling Dune status: %s", exc)
+            return []
+        if state == "QUERY_STATE_COMPLETED":
+            break
+        time.sleep(poll_interval)
+    else:
+        logging.warning("Dune query %s polling timed out", query_id)
+        return []
+
+    results_url = f"https://api.dune.com/api/v1/execution/{execution_id}/results"
+    try:
+        rows = requests.get(results_url, headers=headers).json().get("rows", [])
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Failed fetching Dune results: %s", exc)
+        return []
+    return rows
 
