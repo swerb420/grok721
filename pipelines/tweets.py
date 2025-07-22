@@ -24,6 +24,24 @@ from utils import compute_vibe
 
 from .gas import retry_func
 
+
+def iterate_with_retry(client: ApifyClient, dataset_id: str):
+    """Yield dataset items, retrying on transient errors."""
+    offset = 0
+    while True:
+        iterator = retry_func(client.dataset(dataset_id).iterate_items, offset=offset)
+        got_any = False
+        try:
+            for item in iterator:
+                got_any = True
+                offset += 1
+                yield item
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.warning("Dataset iteration failed: %s", exc)
+            continue
+        if not got_any:
+            break
+
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
 MAX_TWEETS_PER_USER = 1000
 HISTORICAL_START = "2017-01-01"
@@ -72,7 +90,12 @@ def store_tweet(conn: sqlite3.Connection, item: dict) -> TweetData:
     )
     media_json = json.dumps(tweet.media)
 
-    sentiment = sentiment_analyzer(tweet.text[:512])[0]
+    try:
+        sentiment = sentiment_analyzer(tweet.text[:512])[0]
+    except Exception as exc:  # pragma: no cover - optional model may fail
+        logging.warning("Sentiment analysis failed: %s", exc)
+        sentiment = {"label": "NEUTRAL", "score": 0.0}
+
     vibe_score, vibe_label = compute_vibe(
         sentiment["label"], sentiment["score"], tweet.likes, tweet.retweets, tweet.replies
     )
@@ -163,7 +186,7 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
     except Exception as exc:  # pragma: no cover - best effort logging
         logging.error("Error parsing Apify run result: %s", exc)
         return
-    for item in iterate_with_retry(lambda: client.dataset(dataset_id).iterate_items()):
+    for item in iterate_with_retry(client, dataset_id):
         try:
             store_tweet(conn, item)
         except Exception as exc:  # pragma: no cover - best effort logging

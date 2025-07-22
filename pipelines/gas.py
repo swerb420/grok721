@@ -37,13 +37,19 @@ def retry_func(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         requests.options,
     }:
         kwargs.setdefault("timeout", REQUEST_TIMEOUT)
+    last_exc: Exception | None = None
     for attempt in range(retries):
         try:
             return func(*args, **kwargs)
         except Exception as exc:  # pragma: no cover - best effort logging
+            last_exc = exc
             wait = base_backoff * (2 ** attempt) + random.random()
-            logging.warning("Retry %s/%s after error: %s", attempt + 1, retries, exc)
+            logging.warning(
+                "Retry %s/%s after error: %s", attempt + 1, retries, exc
+            )
             time.sleep(wait)
+    if last_exc is not None:
+        raise last_exc
     raise RuntimeError(f"Failed after {retries} retries")
 
 
@@ -54,6 +60,7 @@ def ingest_gas_prices(conn) -> None:
     cur = conn.cursor()
     url = f"https://api.etherscan.io/api?module=gastracker&action=gaschart&apikey={ETHERSCAN_KEY}"
     response = retry_func(requests.get, url)
+    response.raise_for_status()
     try:
         result = response.json().get("result", [])
     except Exception as exc:  # pragma: no cover - best effort logging
@@ -75,6 +82,7 @@ def ingest_gas_prices(conn) -> None:
 
     url = f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_KEY}"
     response = retry_func(requests.get, url)
+    response.raise_for_status()
     try:
         result = response.json().get("result", {})
     except Exception as exc:  # pragma: no cover - best effort logging
