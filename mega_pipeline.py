@@ -46,7 +46,7 @@ import barchart_ondemand  # For Barchart; pip install barchart-ondemand-client-p
 from fmp_python.fmp import FMP  # For Financial Modeling Prep; pip install fmp-python
 from openexchangerates import OpenExchangeRates  # For Open Exchange Rates; pip install openexchangerates
 from config import get_config
-from utils import compute_vibe, fetch_with_fallback
+from utils import compute_vibe, fetch_with_fallback, intervals_for_source
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log_detailed.txt", mode='a', encoding='utf-8'), logging.StreamHandler()])  # Detailed logging with append
 
@@ -250,7 +250,7 @@ def ingest_financial_modeling_prep(conn):
 
 def ingest_eod_historical(conn):
     eod = eodhd.EODHD(EODHD_KEY)
-    minute_enabled = "eodhd" in MINUTE_VALUABLE_SOURCES
+    intervals = intervals_for_source("eodhd", MINUTE_VALUABLE_SOURCES)
     for ticker in EODHD_TICKERS:
         try:
             historical = eod.get_historical_data(
@@ -259,15 +259,15 @@ def ingest_eod_historical(conn):
                 end=datetime.datetime.now().strftime('%Y-%m-%d'),
             )
             fundamentals = eod.get_fundamentals(ticker)
-            if minute_enabled:
-                intraday = fetch_with_fallback(
-                    eod.get_intraday_data,
-                    ticker=ticker,
-                    count=5000,
-                    start_date=HISTORICAL_MINUTE_START,
-                )
-            else:
-                intraday = []  # fallback to daily only
+            intraday = fetch_with_fallback(
+                eod.get_intraday_data,
+                ticker=ticker,
+                count=5000,
+                start_date=HISTORICAL_MINUTE_START
+                if "1min" in intervals
+                else HISTORICAL_START,
+                intervals=intervals,
+            )
             df_hist = pd.DataFrame(historical)
             df_fund = pd.DataFrame([fundamentals]) if isinstance(fundamentals, dict) else pd.DataFrame(fundamentals)
             df_intra = pd.DataFrame(intraday)
@@ -301,26 +301,19 @@ def ingest_eod_historical(conn):
 
 def ingest_twelve_data(conn):
     td = TDClient(apikey=TWELVE_DATA_KEY)
-    minute_enabled = "twelve_data" in MINUTE_VALUABLE_SOURCES
+    intervals = intervals_for_source("twelve_data", MINUTE_VALUABLE_SOURCES)
     for symbol in TWELVE_DATA_SYMBOLS:
         try:
-            if minute_enabled:
-                time_series = fetch_with_fallback(
-                    td.time_series,
-                    symbol=symbol,
-                    start_date=HISTORICAL_MINUTE_START,
-                    end_date=datetime.datetime.now().strftime('%Y-%m-%d'),
-                    outputsize=5000,
-                )
-            else:
-                time_series = fetch_with_fallback(
-                    td.time_series,
-                    symbol=symbol,
-                    interval="1h",
-                    start_date=HISTORICAL_START,
-                    end_date=datetime.datetime.now().strftime('%Y-%m-%d'),
-                    outputsize=5000,
-                )
+            time_series = fetch_with_fallback(
+                td.time_series,
+                symbol=symbol,
+                start_date=HISTORICAL_MINUTE_START
+                if "1min" in intervals
+                else HISTORICAL_START,
+                end_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+                outputsize=5000,
+                intervals=intervals,
+            )
             time_series = time_series.as_pandas()
             fundamentals = td.fundamentals(symbol=symbol).as_pandas()
             quote = td.quote(symbol=symbol).as_dict()
@@ -353,15 +346,18 @@ def ingest_twelve_data(conn):
         time.sleep(1.5)
 
 def ingest_dukascopy(conn):
-    minute_enabled = "dukascopy" in MINUTE_VALUABLE_SOURCES
+    if "dukascopy" in MINUTE_VALUABLE_SOURCES:
+        intervals = ["M1", "M5", "H1"]
+    else:
+        intervals = ["H1", "D1"]
     for pair in DUKASCOPY_PAIRS:
         try:
             df = fetch_with_fallback(
                 pydukascopy.get_historical_data,
                 param_name="timeframe",
-                intervals=["M1", "M5", "H1"] if minute_enabled else ["H1"],
+                intervals=intervals,
                 pair=pair,
-                from_date=HISTORICAL_MINUTE_START if minute_enabled else HISTORICAL_START,
+                from_date=HISTORICAL_MINUTE_START if "M1" in intervals else HISTORICAL_START,
                 to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
             )
             df = df.dropna(subset=['Close', 'Volume']).sort_values('Timestamp').drop_duplicates('Timestamp')
@@ -387,18 +383,25 @@ def ingest_barchart(conn):
     client = barchart_ondemand.BarchartOnDemandClient(
         api_key=BARCHART_KEY, endpoint='https://ondemand.websol.barchart.com'
     )
-    minute_enabled = "barchart" in MINUTE_VALUABLE_SOURCES
+    if "barchart" in MINUTE_VALUABLE_SOURCES:
+        intervals = [1, 5, 60]
+        start_date = HISTORICAL_MINUTE_START
+    else:
+        intervals = [60, 1440]
+        start_date = HISTORICAL_START
     for symbol in BARCHART_SYMBOLS:
         try:
             historical = fetch_with_fallback(
-                client.get_history,
+                lambda interval: client.get_history(
+                    symbol,
+                    type='intraday',
+                    start=start_date,
+                    maxRecords=10000,
+                    order='asc',
+                    interval=interval,
+                ),
                 param_name="interval",
-                intervals=[1, 5, 60] if minute_enabled else [60],
-                symbol=symbol,
-                type="intraday",
-                start=HISTORICAL_MINUTE_START if minute_enabled else HISTORICAL_START,
-                maxRecords=10000,
-                order="asc",
+                intervals=intervals,
             )
             df = pd.DataFrame(historical['results'])
             df = df.dropna(subset=['close', 'volume']).sort_values('timestamp').drop_duplicates('timestamp')
@@ -433,12 +436,32 @@ def main():
     updater.start_polling()
     
     ingest_functions = [
-        ingest_free_datasets, ingest_wallets, ingest_perps, ingest_order_books, ingest_gas_prices,
-        ingest_alpha_vantage_economic, ingest_coingecko_crypto, ingest_fred_economic, ingest_newsapi,
-        ingest_quandl, ingest_world_bank, ingest_yahoo_finance, ingest_cryptocompare, ingest_openexchangerates,
-        ingest_investing_scrape, ingest_census_bureau, ingest_openstreetmap, ingest_sec_edgar, ingest_noaa_climate,
-        ingest_github_repos, ingest_imf, ingest_financial_modeling_prep, ingest_eod_historical, ingest_twelve_data,
-        ingest_dukascopy, ingest_barchart
+        ingest_free_datasets,
+        # ingest_wallets,
+        # ingest_perps,
+        # ingest_order_books,
+        ingest_gas_prices,
+        # ingest_alpha_vantage_economic,
+        # ingest_coingecko_crypto,
+        # ingest_fred_economic,
+        # ingest_newsapi,
+        # ingest_quandl,
+        # ingest_world_bank,
+        ingest_yahoo_finance,
+        # ingest_cryptocompare,
+        # ingest_openexchangerates,
+        # ingest_investing_scrape,
+        # ingest_census_bureau,
+        # ingest_openstreetmap,
+        # ingest_sec_edgar,
+        # ingest_noaa_climate,
+        # ingest_github_repos,
+        # ingest_imf,
+        ingest_financial_modeling_prep,
+        ingest_eod_historical,
+        ingest_twelve_data,
+        ingest_dukascopy,
+        ingest_barchart,
     ]
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(func, conn) for func in ingest_functions]
@@ -448,16 +471,16 @@ def main():
             except Exception as e:
                 logging.error(f"Ingest function error, continuing: {e}")
 
-    fetch_tweets(client, conn, bot)
-    analyze_patterns(conn)
-    ensemble_prediction(conn)
-    generate_dashboard(conn)
-    time_series_plots(conn)
-    export_for_finetuning(conn)
-    backtest_strategies(conn)
+    # fetch_tweets(client, conn, bot)
+    # analyze_patterns(conn)
+    # ensemble_prediction(conn)
+    # generate_dashboard(conn)
+    # time_series_plots(conn)
+    # export_for_finetuning(conn)
+    # backtest_strategies(conn)
     
     scheduler = BackgroundScheduler(max_workers=15, daemon=True)
-    scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, jitter=120, misfire_grace_time=10800)  # Increased jitter/grace
+    # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, jitter=120, misfire_grace_time=10800)
     # Add jobs for all ingests
     scheduler.start()
     

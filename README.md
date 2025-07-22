@@ -19,7 +19,10 @@ Install the base requirements for the lightweight scripts:
 pip install -r requirements.txt
 ```
 
-To run the advanced examples (`extra_pipeline.py`, `advanced_pipeline.py`, `mega_pipeline.py`, `ultimate_pipeline.py`, `untrimmed_pipeline.py`) install the extra dependencies as well:
+The packages in `requirements-extra.txt` are optional and only needed for the
+advanced pipelines (`extra_pipeline.py`, `advanced_pipeline.py`,
+`mega_pipeline.py`, `ultimate_pipeline.py`, `untrimmed_pipeline.py`). Install
+them in addition to the base requirements if you want to run those scripts:
 
 ```bash
 pip install -r requirements.txt -r requirements-extra.txt
@@ -35,8 +38,8 @@ Refer to `.env.example` for the full list of supported variables.
 
 ## Running the async pipeline
 
-For a lightweight example that works well on modest hardware, install
-the dependencies and run `async_pipeline.py`:
+For a lightweight example that works well on machines with limited memory,
+install the dependencies and run `async_pipeline.py`:
 
 ```bash
 pip install -r requirements.txt
@@ -44,7 +47,17 @@ python async_pipeline.py
 ```
 
 The async version uses `aiohttp` for non-blocking requests and stores
-gas price data in a local SQLite database.
+gas price data in a local SQLite database. On low-memory systems it is
+often more stable than the synchronous pipelines.
+
+## Testing
+
+Run the unit tests with [`pytest`](https://docs.pytest.org/) from the repository
+root:
+
+```bash
+pytest -q
+```
 
 ## License
 

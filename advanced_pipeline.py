@@ -362,6 +362,8 @@ def ingest_free_datasets(conn):
 # Similar detailed functions would go here
 
 
+"""
+
 def ingest_wallets(conn):
     pass
 
@@ -468,11 +470,15 @@ def export_for_finetuning(conn):
 
 def backtest_strategies(conn):
     pass
+"""
+
 
 
 def retry_func(func, *args, **kwargs):
     return func(*args, **kwargs)
 
+
+"""
 
 def approval_handler(update, context):
     pass
@@ -488,71 +494,14 @@ def remove_account(update, context):
 
 def list_accounts(update, context):
     pass
+"""
+
 
 # main with expanded concurrency
 def main():
-    client = ApifyClient(APIFY_TOKEN)
+    """Run the minimal working portion of the advanced pipeline."""
     conn = init_db()
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-    dispatcher.add_handler(CallbackQueryHandler(approval_handler))
-    dispatcher.add_handler(CommandHandler('add', add_account))
-    dispatcher.add_handler(CommandHandler('remove', remove_account))
-    dispatcher.add_handler(CommandHandler('list', list_accounts))
-    updater.start_polling()
-    
-    ingest_functions = [
-        ingest_free_datasets,
-        ingest_wallets,
-        ingest_perps,
-        ingest_order_books,
-        ingest_gas_prices,
-        ingest_alpha_vantage_economic,
-        ingest_coingecko_crypto,
-        ingest_fred_economic,
-        ingest_newsapi,
-        ingest_quandl,
-        ingest_world_bank,
-        ingest_yahoo_finance,
-        ingest_cryptocompare,
-        ingest_openexchangerates,
-        ingest_investing_scrape,
-        ingest_census_bureau,
-        ingest_openstreetmap,
-        ingest_sec_edgar,
-        ingest_noaa_climate,
-        ingest_github_repos,
-        ingest_imf,
-    ]
-    with ThreadPoolExecutor(max_workers=8) as executor:  # Increased for more ingests
-        futures = [executor.submit(func, conn) for func in ingest_functions]
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                logging.error(f"Ingest function error: {e}")
-    
-    fetch_tweets(client, conn, bot)
-    analyze_patterns(conn)
-    ensemble_prediction(conn)
-    generate_dashboard(conn)
-    time_series_plots(conn)
-    export_for_finetuning(conn)
-    backtest_strategies(conn)
-    
-    scheduler = BackgroundScheduler(max_workers=12, daemon=True)
-    scheduler.add_job(
-        lambda: fetch_tweets(client, conn, bot),
-        'cron',
-        hour=1,
-        jitter=60,
-        misfire_grace_time=7200,
-    )  # Jitter for limits
-    # Add jobs for all ingests with jitter
-    scheduler.start()
-    
-    updater.idle()
+    ingest_free_datasets(conn)
     conn.close()
 
 if __name__ == "__main__":

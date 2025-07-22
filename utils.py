@@ -1,5 +1,5 @@
 """Utility functions used across pipeline scripts."""
-from typing import Tuple, Optional, Callable, Any, List
+from typing import Tuple, Optional, Callable, Any, List, Iterable
 import time
 import logging
 
@@ -12,12 +12,12 @@ def compute_vibe(
     replies: Optional[int] = None,
 ) -> Tuple[float, str]:
     """Compute a simplified vibe score from sentiment and engagement."""
-    # Normalize engagement counts. ``None`` values are treated as zero, but
-    # negative values are allowed to reduce the vibe score to reflect
-    # potentially adverse reactions.
-    likes = likes if likes is not None else 0
-    retweets = retweets if retweets is not None else 0
-    replies = replies if replies is not None else 0
+    # Normalize engagement counts so that missing or negative values don't
+    # artificially lower the vibe score.
+    # Preserve negative counts to penalize posts receiving backlash or bot spam
+    likes = likes or 0
+    retweets = retweets or 0
+    replies = replies or 0
     engagement = (likes + retweets * 2 + replies) / 1000.0
     base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
     vibe_score = (base_score + engagement) * 5
@@ -29,6 +29,8 @@ def compute_vibe(
     elif vibe_score > 3:
         vibe_label = "Controversial/Mixed"
     else:
+        vibe_label = "Negative/Low Engagement"
+    if has_negative:
         vibe_label = "Negative/Low Engagement"
     return vibe_score, vibe_label
 
@@ -82,4 +84,11 @@ def fetch_with_fallback(
                 raise
     if last_exc:
         raise last_exc
+
+
+def intervals_for_source(source: str, valuable_sources: Iterable[str]) -> List[str]:
+    """Return resolution intervals for a data source."""
+    if source in valuable_sources:
+        return ["1min", "5min", "1h"]
+    return ["1h", "1d"]
 
