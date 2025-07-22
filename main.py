@@ -276,10 +276,18 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
         f"https://api.etherscan.io/api?module=gastracker&action=gaschart&apikey={ETHERSCAN_KEY}"
     )
     response = retry_func(requests.get, url)
-    result = response.json().get("result", [])
+    try:
+        result = response.json().get("result", [])
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Error parsing Etherscan historical gas data: %s", exc)
+        result = []
     for entry in result:
-        timestamp = datetime.datetime.fromtimestamp(int(entry["unixTimeStamp"])).isoformat()
-        average_gas = float(entry["gasPrice"])
+        try:
+            timestamp = datetime.datetime.fromtimestamp(int(entry["unixTimeStamp"])).isoformat()
+            average_gas = float(entry["gasPrice"])
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.warning("Malformed gas price entry: %s", exc)
+            continue
         cur.execute(
             "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
             (timestamp, average_gas, "etherscan_historical"),
@@ -291,35 +299,51 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
         f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_KEY}"
     )
     response = retry_func(requests.get, url)
-    result = response.json().get("result", {})
+    try:
+        result = response.json().get("result", {})
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Error parsing Etherscan gas oracle data: %s", exc)
+        result = {}
     timestamp = datetime.datetime.utcnow().isoformat()
-    cur.execute(
-        """
-        INSERT OR IGNORE INTO gas_prices (
-            timestamp, fast_gas, average_gas, slow_gas, base_fee, source
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            timestamp,
-            float(result.get("FastGasPrice", 0)),
-            float(result.get("ProposeGasPrice", 0)),
-            float(result.get("SafeGasPrice", 0)),
-            float(result.get("LastBlock", 0)),
-            "etherscan_current",
-        ),
-    )
-    conn.commit()
-    logging.info("Ingested current gas prices")
+    try:
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO gas_prices (
+                timestamp, fast_gas, average_gas, slow_gas, base_fee, source
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                timestamp,
+                float(result.get("FastGasPrice", 0)),
+                float(result.get("ProposeGasPrice", 0)),
+                float(result.get("SafeGasPrice", 0)),
+                float(result.get("LastBlock", 0)),
+                "etherscan_current",
+            ),
+        )
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.warning("Error storing current gas price: %s", exc)
+    else:
+        conn.commit()
+        logging.info("Ingested current gas prices")
 
     # Dune endpoint (simplified execution)
     headers = {"x-dune-api-key": DUNE_API_KEY}
     url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/execute"
     response = retry_func(requests.post, url, headers=headers)
-    execution_id = response.json().get("execution_id")
+    try:
+        execution_id = response.json().get("execution_id")
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Failed parsing Dune execution response: %s", exc)
+        execution_id = None
     if execution_id:
         status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
         for _ in range(DUNE_MAX_POLL):
-            state = retry_func(requests.get, status_url, headers=headers).json().get("state")
+            try:
+                state = retry_func(requests.get, status_url, headers=headers).json().get("state")
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logging.error("Failed parsing Dune status: %s", exc)
+                break
             if state == "QUERY_STATE_COMPLETED":
                 break
             time.sleep(5)
@@ -328,10 +352,18 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
             return
         results_url = f"https://api.dune.com/api/v1/execution/{execution_id}/results"
         response = retry_func(requests.get, results_url, headers=headers)
-        rows = response.json().get("rows", [])
+        try:
+            rows = response.json().get("rows", [])
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.error("Failed parsing Dune results: %s", exc)
+            rows = []
         for row in rows:
-            timestamp = row.get("day", datetime.datetime.utcnow().isoformat())
-            average_gas = row.get("avg_gas_gwei", 0)
+            try:
+                timestamp = row.get("day", datetime.datetime.utcnow().isoformat())
+                average_gas = row.get("avg_gas_gwei", 0)
+            except Exception as exc:  # pragma: no cover - best effort logging
+                logging.warning("Malformed Dune row: %s", exc)
+                continue
             cur.execute(
                 "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
                 (timestamp, average_gas, "dune"),
@@ -349,8 +381,17 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
         "start": HISTORICAL_START,
     }
     run = retry_func(client.actor(ACTOR_ID).call, run_input=input_data)
-    for item in retry_func(client.dataset(run["defaultDatasetId"]).iterate_items):
-        tweet = store_tweet(conn, item)
+    try:
+        dataset_id = run["defaultDatasetId"]
+    except Exception as exc:  # pragma: no cover - best effort logging
+        logging.error("Error parsing Apify run result: %s", exc)
+        return
+    for item in retry_func(client.dataset(dataset_id).iterate_items):
+        try:
+            tweet = store_tweet(conn, item)
+        except Exception as exc:  # pragma: no cover - best effort logging
+            logging.error("Error storing tweet: %s", exc)
+            continue
         # Additional processing such as media analysis could be added here
     logging.info("Tweet ingestion complete")
     monitor_costs(client)
