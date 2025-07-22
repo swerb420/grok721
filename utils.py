@@ -104,4 +104,3 @@ def execute_dune_query(query_id: str, api_key: str, **kwargs: Any) -> List[dict]
     from pipelines.dune import execute_dune_query as _exec
 
     return _exec(query_id, api_key, **kwargs)
-
