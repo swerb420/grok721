@@ -28,7 +28,19 @@ from .gas import retry_func
 def iterate_with_retry(client: ApifyClient, dataset_id: str):
     """Yield dataset items, retrying on transient errors."""
     offset = 0
+    supports_offset = True
     while True:
+        try:
+            if supports_offset:
+                iterator = retry_func(
+                    client.dataset(dataset_id).iterate_items,
+                    offset=offset,
+                )
+            else:
+                iterator = retry_func(client.dataset(dataset_id).iterate_items)
+        except TypeError:
+            supports_offset = False
+            iterator = retry_func(client.dataset(dataset_id).iterate_items)
         from itertools import islice
 
         iterator = islice(
@@ -38,11 +50,20 @@ def iterate_with_retry(client: ApifyClient, dataset_id: str):
         try:
             for item in iterator:
                 got_any = True
-                offset += 1
+                if supports_offset:
+                    offset += 1
                 yield item
         except Exception as exc:  # pragma: no cover - best effort logging
             logging.warning("Dataset iteration failed: %s", exc)
             continue
+        if not supports_offset:
+            break
+        if not got_any:
+            break
+
+USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
+MAX_TWEETS_PER_USER = 1000
+HISTORICAL_START = get_config("HISTORICAL_START", "2017-01-01")
         break
 
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
