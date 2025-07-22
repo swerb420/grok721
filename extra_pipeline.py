@@ -171,9 +171,8 @@ def approval_handler(update, context):
     tweet_id = data.split('_')[1]
     approved = 1 if data.startswith('approve') else 0
     with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        update_tweet_analysis(conn, tweet_id, None, approved)
-        conn.close()
+        with sqlite3.connect(DB_FILE) as conn:
+            update_tweet_analysis(conn, tweet_id, None, approved)
     query.answer(text="Approved" if approved else "Denied")
 
 def add_account(update, context):
@@ -256,8 +255,9 @@ def update_tweet_analysis(conn: sqlite3.Connection, tweet_id: str, analysis: dic
         cur.execute("UPDATE tweets SET analysis = ?, approved = ? WHERE id = ?", (json.dumps(analysis), approved, tweet_id))
     conn.commit()
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=30)  # Increased timeout for concurrency
+def init_db(conn: sqlite3.Connection | None = None):
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=30)  # Increased timeout for concurrency
     cur = conn.cursor()
     cur.execute('PRAGMA journal_mode=WAL;')  # WAL for better read/write concurrency
     cur.execute('PRAGMA synchronous = NORMAL;')  # Balance safety/performance
@@ -558,65 +558,65 @@ def ingest_world_bank(conn):
 
 def main():
     client = ApifyClient(APIFY_TOKEN)
-    conn = init_db()
-    bot = Bot(token=TELEGRAM_BOT_TOKEN)
-    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-    dispatcher.add_handler(CallbackQueryHandler(approval_handler))
-    dispatcher.add_handler(CommandHandler('add', add_account))
-    dispatcher.add_handler(CommandHandler('remove', remove_account))
-    dispatcher.add_handler(CommandHandler('list', list_accounts))
-    updater.start_polling()
-    
-    # Concurrent ingests for speed/memory
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [
-            executor.submit(ingest_free_datasets, conn),
-            # executor.submit(ingest_wallets, conn),
-            # executor.submit(ingest_perps, conn),
-            # executor.submit(ingest_order_books, conn),
-            executor.submit(ingest_gas_prices, conn),
-            # executor.submit(ingest_alpha_vantage_economic, conn),
-            # executor.submit(ingest_coingecko_crypto, conn),
-            # executor.submit(ingest_fred_economic, conn),
-            # executor.submit(ingest_newsapi, conn),
-            # executor.submit(ingest_quandl, conn),
-            # executor.submit(ingest_world_bank, conn)
-        ]
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as e:
-                logging.error(f"Ingest thread error: {e}")
-    
-    # fetch_tweets(client, conn, bot)
-    # analyze_patterns(conn)
-    # ensemble_prediction(conn)
-    # generate_dashboard(conn)
-    # time_series_plots(conn)
-    # export_for_finetuning(conn)
-    # backtest_strategies(conn)
-    
-    scheduler = BackgroundScheduler(max_workers=5)
-    # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, misfire_grace_time=3600)
-    # scheduler.add_job(lambda: ingest_wallets(conn), 'cron', hour=3)
-    # scheduler.add_job(lambda: ingest_perps(conn), 'cron', hour=4)
-    # scheduler.add_job(lambda: ingest_order_books(conn), 'cron', hour=5)
-    scheduler.add_job(lambda: ingest_gas_prices(conn), 'cron', hour=6)
-    # scheduler.add_job(lambda: ingest_alpha_vantage_economic(conn), 'cron', hour=7)
-    # scheduler.add_job(lambda: ingest_coingecko_crypto(conn), 'cron', hour=8)
-    # scheduler.add_job(lambda: ingest_fred_economic(conn), 'cron', hour=9)
-    # scheduler.add_job(lambda: ingest_newsapi(conn), 'cron', hour=10)
-    # scheduler.add_job(lambda: ingest_quandl(conn), 'cron', hour=11)
-    # scheduler.add_job(lambda: ingest_world_bank(conn), 'cron', hour=12)
-    # scheduler.add_job(lambda: analyze_patterns(conn), 'cron', hour=2)
-    # scheduler.add_job(lambda: ensemble_prediction(conn), 'cron', hour=13)
-    # scheduler.add_job(lambda: generate_dashboard(conn), 'cron', hour=14)
-    # scheduler.add_job(lambda: time_series_plots(conn), 'cron', hour=15)
-    scheduler.start()
-    
-    updater.idle()
-    conn.close()
+    with sqlite3.connect(DB_FILE, check_same_thread=False, timeout=30) as conn:
+        init_db(conn)
+        bot = Bot(token=TELEGRAM_BOT_TOKEN)
+        updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+        dispatcher = updater.dispatcher
+        dispatcher.add_handler(CallbackQueryHandler(approval_handler))
+        dispatcher.add_handler(CommandHandler('add', add_account))
+        dispatcher.add_handler(CommandHandler('remove', remove_account))
+        dispatcher.add_handler(CommandHandler('list', list_accounts))
+        updater.start_polling()
+
+        # Concurrent ingests for speed/memory
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(ingest_free_datasets, conn),
+                # executor.submit(ingest_wallets, conn),
+                # executor.submit(ingest_perps, conn),
+                # executor.submit(ingest_order_books, conn),
+                executor.submit(ingest_gas_prices, conn),
+                # executor.submit(ingest_alpha_vantage_economic, conn),
+                # executor.submit(ingest_coingecko_crypto, conn),
+                # executor.submit(ingest_fred_economic, conn),
+                # executor.submit(ingest_newsapi, conn),
+                # executor.submit(ingest_quandl, conn),
+                # executor.submit(ingest_world_bank, conn)
+            ]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.error(f"Ingest thread error: {e}")
+
+        # fetch_tweets(client, conn, bot)
+        # analyze_patterns(conn)
+        # ensemble_prediction(conn)
+        # generate_dashboard(conn)
+        # time_series_plots(conn)
+        # export_for_finetuning(conn)
+        # backtest_strategies(conn)
+
+        scheduler = BackgroundScheduler(max_workers=5)
+        # scheduler.add_job(lambda: fetch_tweets(client, conn, bot), 'cron', hour=1, misfire_grace_time=3600)
+        # scheduler.add_job(lambda: ingest_wallets(conn), 'cron', hour=3)
+        # scheduler.add_job(lambda: ingest_perps(conn), 'cron', hour=4)
+        # scheduler.add_job(lambda: ingest_order_books(conn), 'cron', hour=5)
+        scheduler.add_job(lambda: ingest_gas_prices(conn), 'cron', hour=6)
+        # scheduler.add_job(lambda: ingest_alpha_vantage_economic(conn), 'cron', hour=7)
+        # scheduler.add_job(lambda: ingest_coingecko_crypto(conn), 'cron', hour=8)
+        # scheduler.add_job(lambda: ingest_fred_economic(conn), 'cron', hour=9)
+        # scheduler.add_job(lambda: ingest_newsapi(conn), 'cron', hour=10)
+        # scheduler.add_job(lambda: ingest_quandl(conn), 'cron', hour=11)
+        # scheduler.add_job(lambda: ingest_world_bank(conn), 'cron', hour=12)
+        # scheduler.add_job(lambda: analyze_patterns(conn), 'cron', hour=2)
+        # scheduler.add_job(lambda: ensemble_prediction(conn), 'cron', hour=13)
+        # scheduler.add_job(lambda: generate_dashboard(conn), 'cron', hour=14)
+        # scheduler.add_job(lambda: time_series_plots(conn), 'cron', hour=15)
+        scheduler.start()
+
+        updater.idle()
 
 if __name__ == "__main__":
     main()
