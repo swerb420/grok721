@@ -37,7 +37,22 @@ pip install -r requirements.txt -r requirements-extra.txt
 Create a copy of `.env.example` named `.env` and fill in your API
 credentials. Environment variables such as `APIFY_TOKEN` and
 `TELEGRAM_BOT_TOKEN` will be loaded automatically when the scripts run.
-Refer to `.env.example` for the full list of supported variables.
+The pipelines also expose individual query IDs for the Dune dashboards
+listed in `docs/dune_dashboards.md`:
+
+```
+DUNE_GAS_PRICES_QUERY_ID
+DUNE_HYPERLIQUID_STATS_QUERY_ID
+DUNE_HYPERLIQUID_QUERY_ID
+DUNE_GMX_ANALYTICS_QUERY_ID
+DUNE_HYPERLIQUID_FLOWS_QUERY_ID
+DUNE_PERPS_HYPERLIQUID_QUERY_ID
+DUNE_GMX_IO_QUERY_ID
+DUNE_AIRDROPS_WALLETS_QUERY_ID
+DUNE_SMART_WALLET_FINDER_QUERY_ID
+DUNE_WALLET_BALANCES_QUERY_ID
+```
+Refer to `.env.example` for the complete list of supported variables.
 
 ## Running the async pipeline
 
