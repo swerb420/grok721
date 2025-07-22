@@ -41,11 +41,9 @@ def iterate_with_retry(client: ApifyClient, dataset_id: str):
         except TypeError:
             supports_offset = False
             iterator = retry_func(client.dataset(dataset_id).iterate_items)
-        from itertools import islice
-
-        iterator = islice(
-            retry_func(client.dataset(dataset_id).iterate_items), offset, None
-        )
+        if not supports_offset and offset:
+            from itertools import islice
+            iterator = islice(iterator, offset, None)
         got_any = False
         try:
             for item in iterator:
@@ -62,13 +60,8 @@ def iterate_with_retry(client: ApifyClient, dataset_id: str):
             break
 
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
-MAX_TWEETS_PER_USER = 1000
-HISTORICAL_START = get_config("HISTORICAL_START", "2017-01-01")
-        break
-
-USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
 MAX_TWEETS_PER_USER = int(get_config("MAX_TWEETS_PER_USER", "1000"))
-HISTORICAL_START = "2017-01-01"
+HISTORICAL_START = get_config("HISTORICAL_START", "2017-01-01")
 
 APIFY_TOKEN = get_config("APIFY_TOKEN", "apify_api_xxxxxxxxxx")
 TELEGRAM_BOT_TOKEN = get_config("TELEGRAM_BOT_TOKEN", "xxxxxxxxxx:xxxxxxxxxx")
