@@ -9,6 +9,10 @@ import threading
 import logging
 import requests
 import pandas as pd
+import numpy as np
+from worldbank import WorldBank
+from tradingeconomics import TradingEconomics
+from census import Census
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.model_selection import GridSearchCV
 from transformers import pipeline
@@ -54,6 +58,11 @@ COVALENT_KEY = get_config("COVALENT_KEY")
 LUNARCRUSH_KEY = get_config("LUNARCRUSH_KEY")
 BLOCKCHAIR_KEY = get_config("BLOCKCHAIR_KEY")
 GLASSNODE_KEY = get_config("GLASSNODE_KEY")
+MARKETSTACK_KEY = get_config("MARKETSTACK_KEY")
+OECD_KEY = get_config("OECD_KEY")
+TRADING_ECONOMICS_KEY = get_config("TRADING_ECONOMICS_KEY")
+WORLD_BANK_KEY = get_config("WORLD_BANK_KEY")
+CENSUS_BUREAU_KEY = get_config("CENSUS_BUREAU_KEY")
 DB_FILE = "super_db.db"
 ACTOR_ID = "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest"
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]  # Include tracking accounts
@@ -96,6 +105,13 @@ MORALIS_CHAINS = ['eth', 'bsc', 'polygon', 'avalanche', 'fantom', 'cronos', 'arb
 COVALENT_CHAINS = [1, 56, 137, 43114, 250, 25, 42161, 10]  # Chain IDs
 LUNARCRUSH_ASSETS = ['btc', 'eth', 'sol', 'xrp', 'ada', 'doge', 'dot', 'link', 'uni', 'ltc']  # Expanded
 BLOCKCHAIR_CHAINS = ['bitcoin', 'ethereum', 'litecoin', 'bitcoin-cash', 'ripple', 'stellar', 'dogecoin', 'eos', 'dash', 'cardano']  # Expanded
+MARKETSTACK_SYMBOLS = ['AAPL', 'TSLA', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'BRK.B', 'V', 'JPM', 'BTC-USD', 'ETH-USD', '^GSPC', '^IXIC', '^DJI']  # Expanded for Marketstack
+OECD_INDICATORS = ['GDP', 'UNEMPLOYMENT', 'CPI', 'INTEREST_RATE', 'PRODUCTION', 'CONSUMER_CONFIDENCE', 'BUSINESS_CONFIDENCE', 'TRADE_BALANCE', 'CURRENT_ACCOUNT', 'PUBLIC_DEBT']  # Expanded for OECD
+OECD_COUNTRIES = ['USA', 'CHN', 'JPN', 'DEU', 'GBR', 'FRA', 'IND', 'ITA', 'CAN', 'KOR']
+TRADING_ECONOMICS_COUNTRIES = ['united-states', 'china', 'japan', 'germany', 'united-kingdom', 'france', 'india', 'italy', 'canada', 'south-korea']  # Expanded
+TRADING_ECONOMICS_INDICATORS = ['gdp', 'unemployment-rate', 'inflation-rate', 'interest-rate', 'balance-of-trade', 'current-account', 'government-debt-to-gdp', 'retail-sales-yoy', 'industrial-production', 'consumer-confidence']  # Expanded
+WORLD_BANK_INDICATORS = ['NY.GDP.MKTP.CD', 'SL.UEM.TOTL.ZS', 'FP.CPI.TOTL.ZG', 'FR.INR.RINR', 'BX.TRF.PWKR.CD.DT', 'BN.CAB.XOKA.CD', 'GC.DOD.TOTL.GD.ZS', 'SL.UEM.TOTL.ZS', 'NY.GNP.MKTP.CD', 'SP.POP.TOTL']  # Expanded
+CENSUS_BUREAU_DATASETS = ['acs/acs1', 'acs/acs5', 'dec/pl', 'pep/population', 'cps/basic/jan', 'cps/basic/feb', 'cps/basic/mar', 'cps/basic/apr', 'cps/basic/may', 'cps/basic/jun']  # Expanded demographics
 
 # ML Models with grid search and cross-validation
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=0 if os.name != 'posix' else -1)
@@ -234,6 +250,160 @@ def ingest_moralis(conn):
             except Exception as e:
                 logging.error(f"Moralis ingest error for {wallet} on {chain}: {e}")
             time.sleep(0.2)  # 1M calls/month ~ high rate
+
+def ingest_marketstack(conn):
+    for symbol in MARKETSTACK_SYMBOLS:
+        try:
+            params = {
+                'symbols': symbol,
+                'date_from': HISTORICAL_START,
+                'date_to': datetime.datetime.now().strftime('%Y-%m-%d'),
+                'limit': 1000,
+                'offset': 0,
+            }
+            url = f"http://api.marketstack.com/v1/eod?access_key={MARKETSTACK_KEY}"
+            data = []
+            while True:
+                response = retry_func(requests.get, url, params=params).json()
+                pagination = response['pagination']
+                data.extend(response['data'])
+                if pagination['offset'] + pagination['limit'] >= pagination['total']:
+                    break
+                params['offset'] += pagination['limit']
+            df = pd.DataFrame(data)
+            df = df.dropna(subset=['close', 'volume']).sort_values('date').drop_duplicates('date')
+            df['date'] = pd.to_datetime(df['date']).dt.isoformat()
+            df['adjusted_close'] = df['adj_close']
+            df['dividend'] = df.get('dividend', 0)
+            df['split_factor'] = df.get('split_factor', 1)
+            df['return'] = df['close'].pct_change().fillna(0)
+            df['volatility'] = df['return'].rolling(window=30, min_periods=1).std() * np.sqrt(252)
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df.iterrows():
+                    cur.execute(
+                        "INSERT OR REPLACE INTO prices (ticker, date, open, high, low, close, volume, type, adjusted_close, market_cap, dividend, split_factor, volatility) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (symbol, row['date'], row['open'], row['high'], row['low'], row['close'], row['volume'], 'stock', row['adjusted_close'], row.get('market_cap', np.nan), row['dividend'], row['split_factor'], row['volatility']),
+                    )
+                conn.commit()
+            logging.info(f"Ingested, enriched volatility/dividends for Marketstack {symbol}")
+        except Exception as e:
+            logging.error(f"Marketstack ingest error for {symbol}: {e}")
+        time.sleep(6)
+
+
+def ingest_oecd(conn):
+    for indicator in OECD_INDICATORS:
+        for country in OECD_COUNTRIES:
+            try:
+                url = f"https://stats.oecd.org/SDMX-JSON/data/MEI_CLI/{indicator}.{country}.PAIXSA/all?startTime={HISTORICAL_START}"
+                response = retry_func(requests.get, url).json()
+                structure = response['structure']
+                data_sets = response['dataSets'][0]['series']
+                df = pd.DataFrame()
+                for key, value in data_sets.items():
+                    series = value['observations']
+                    dates = [structure['dimensions']['observation'][0]['values'][int(k)]['id'] for k in series.keys()]
+                    values = [v[0] for v in series.values()]
+                    temp_df = pd.DataFrame({'date': dates, 'value': values})
+                    temp_df['indicator'] = indicator
+                    temp_df['country'] = country
+                    df = pd.concat([df, temp_df])
+                df = df.dropna(subset=['value']).sort_values('date').drop_duplicates('date')
+                df['date'] = pd.to_datetime(df['date']).dt.isoformat()
+                df['growth_rate'] = df['value'].pct_change().fillna(0)
+                df['z_score'] = (df['value'] - df['value'].mean()) / df['value'].std()
+                with db_lock:
+                    cur = conn.cursor()
+                    for _, row in df.iterrows():
+                        cur.execute(
+                            "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency, growth_rate, z_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (row['indicator'], row['date'], row['value'], 'oecd', 'index', row['country'], 'monthly', row['growth_rate'], row['z_score']),
+                        )
+                    conn.commit()
+                logging.info(f"Ingested, enriched growth/z for OECD {indicator} in {country}")
+            except Exception as e:
+                logging.error(f"OECD ingest error for {indicator} in {country}: {e}")
+            time.sleep(1)
+
+
+def ingest_trading_economics(conn):
+    for country in TRADING_ECONOMICS_COUNTRIES:
+        for indicator in TRADING_ECONOMICS_INDICATORS:
+            try:
+                url = f"https://api.tradingeconomics.com/historical/country/{country}/indicator/{indicator}?c={TRADING_ECONOMICS_KEY}&f=json"
+                response = retry_func(requests.get, url).json()
+                df = pd.DataFrame(response)
+                df = df.dropna(subset=['Value']).sort_values('DateTime').drop_duplicates('DateTime')
+                df['date'] = pd.to_datetime(df['DateTime']).dt.isoformat()
+                df['value'] = pd.to_numeric(df['Value'], errors='coerce')
+                df['ma_3'] = df['value'].rolling(window=3, min_periods=1).mean()
+                df['ma_12'] = df['value'].rolling(window=12, min_periods=1).mean()
+                df['crossover_signal'] = np.where(df['ma_3'] > df['ma_12'], 1, np.where(df['ma_3'] < df['ma_12'], -1, 0))
+                with db_lock:
+                    cur = conn.cursor()
+                    for _, row in df.iterrows():
+                        cur.execute(
+                            "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency, ma_3, ma_12, crossover_signal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (indicator, row['date'], row['value'], 'trading_economics', row.get('Unit', 'percent'), country, row.get('Frequency', 'monthly'), row['ma_3'], row['ma_12'], row['crossover_signal']),
+                        )
+                    conn.commit()
+                logging.info(f"Ingested, enriched MA/crossover for Trading Economics {indicator} in {country}")
+            except Exception as e:
+                logging.error(f"Trading Economics ingest error for {indicator} in {country}: {e}")
+            time.sleep(1)
+
+
+def ingest_world_bank_databank(conn):
+    wb = WorldBank()
+    for indicator in WORLD_BANK_INDICATORS:
+        try:
+            df = wb.get_series(indicator, date=f"{HISTORICAL_START}:{datetime.datetime.now().strftime('%Y')}", mrv=10000)
+            df = df.reset_index()
+            df = df.dropna(subset=['value']).sort_values('Year').drop_duplicates(['Country', 'Year'])
+            df['date'] = df['Year'].apply(lambda x: f"{x}-12-31")
+            df['value'] = pd.to_numeric(df['value'], errors='coerce')
+            df['country_growth'] = df.groupby('Country')['value'].pct_change().fillna(0)
+            df['global_avg'] = df.groupby('date')['value'].transform('mean')
+            df['dev_from_global'] = df['value'] - df['global_avg']
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df.iterrows():
+                    cur.execute(
+                        "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency, country_growth, global_avg, dev_from_global) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (indicator, row['date'], row['value'], 'world_bank', 'various', row['Country'], 'annual', row['country_growth'], row['global_avg'], row['dev_from_global']),
+                    )
+                conn.commit()
+            logging.info(f"Ingested, enriched growth/deviation for World Bank {indicator}")
+        except Exception as e:
+            logging.error(f"World Bank ingest error for {indicator}: {e}")
+        time.sleep(1)
+
+
+def ingest_census_bureau(conn):
+    c = Census(CENSUS_BUREAU_KEY)
+    for dataset in CENSUS_BUREAU_DATASETS:
+        try:
+            df = pd.DataFrame(c.acs5.state(('NAME', 'B01003_001E'), Census.ALL, year=int(datetime.datetime.now().year) - 1))
+            df = df.dropna(subset=['B01003_001E']).sort_values('state')
+            df['date'] = f"{datetime.datetime.now().year - 1}-12-31"
+            df['value'] = pd.to_numeric(df['B01003_001E'], errors='coerce')
+            df['series'] = 'population'
+            df['country'] = 'US'
+            df['state'] = df['state']
+            df['density'] = df['value'] / df.get('land_area', 1)
+            with db_lock:
+                cur = conn.cursor()
+                for _, row in df.iterrows():
+                    cur.execute(
+                        "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, unit, country, frequency, state, density) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (row['series'], row['date'], row['value'], 'census_bureau', 'people', row['country'], 'annual', row['state'], row['density']),
+                    )
+                conn.commit()
+            logging.info(f"Ingested, enriched density for Census {dataset}")
+        except Exception as e:
+            logging.error(f"Census Bureau ingest error for {dataset}: {e}")
+        time.sleep(1)
 
 # Similar ultimate advanced code for Covalent, LunarCrush, Blockchair - detailed fetching, cleaning, enrichment, etc.
 
