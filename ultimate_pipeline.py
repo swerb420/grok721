@@ -1,4 +1,9 @@
-"""Ultimate pipeline demonstrating full-scale processing."""
+"""Ultimate pipeline demonstrating full-scale processing.
+
+This file pushes the concept to its limits and is kept here as an
+illustrative **experiment** only.  Many API calls and integrations are
+omitted or simplified, so it is not ready for real workloads.
+"""
 
 import os
 import json

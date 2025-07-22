@@ -1,4 +1,10 @@
-"""Advanced pipeline with extensive data sources and modeling."""
+"""Advanced pipeline with extensive data sources and modeling.
+
+This module is provided as an **experimental template**. Many of the
+functions below are only stubs using ``pass`` because the full
+implementation would be extremely large.  The file is kept for reference
+purposes and is not meant to be executed as-is.
+"""
 
 import os
 import time
