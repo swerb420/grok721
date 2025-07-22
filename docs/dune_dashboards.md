@@ -34,3 +34,23 @@ original author and a short description of the data available.
 These dashboards can be queried programmatically using the Dune API. Store the
 results in your database to correlate wallet profitability with gas prices,
 sentiment indicators and other market data.
+
+## Using the Dune free tier
+
+Dune's Community plan (as of 2025) permits unlimited query executions with a
+40 requests/min rate limit and returns up to 1,000 rows per execution. This is
+enough to ingest historical data from all ten dashboards by batching the
+requests:
+
+- The largest dataset, **Gas Prices**, spans about 3&nbsp;million hourly rows.
+  Chunking by month requires roughly 100–200 executions.
+- Other dashboards contain fewer than 100&nbsp;k rows each, so the total volume
+  across all dashboards is around 500&nbsp;k–600&nbsp;k rows (approximately
+  1–2&nbsp;GB of storage).
+- A full initial ingest completes in roughly two to four hours on a machine with
+  8&nbsp;GB of RAM and a 100&nbsp;GB SSD.
+- Daily refreshes typically take only 10–20&nbsp;minutes.
+
+Paid tiers are optional and mainly provide higher request rates or larger result
+limits. The free tier is otherwise sufficient for the workflows demonstrated in
+this repository.
