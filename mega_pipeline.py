@@ -46,7 +46,7 @@ import barchart_ondemand  # For Barchart; pip install barchart-ondemand-client-p
 from fmp_python.fmp import FMP  # For Financial Modeling Prep; pip install fmp-python
 from openexchangerates import OpenExchangeRates  # For Open Exchange Rates; pip install openexchangerates
 from config import get_config
-from utils import compute_vibe
+from utils import compute_vibe, fetch_with_fallback
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.FileHandler("system_log_detailed.txt", mode='a', encoding='utf-8'), logging.StreamHandler()])  # Detailed logging with append
 
