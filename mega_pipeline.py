@@ -356,28 +356,14 @@ def ingest_dukascopy(conn):
     minute_enabled = "dukascopy" in MINUTE_VALUABLE_SOURCES
     for pair in DUKASCOPY_PAIRS:
         try:
-            if minute_enabled:
-                try:
-                    df = pydukascopy.get_historical_data(
-                        pair,
-                        from_date=HISTORICAL_MINUTE_START,
-                        to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
-                        timeframe='M1',
-                    )
-                except Exception:
-                    df = pydukascopy.get_historical_data(
-                        pair,
-                        from_date=HISTORICAL_MINUTE_START,
-                        to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
-                        timeframe='M5',
-                    )
-            else:
-                df = pydukascopy.get_historical_data(
-                    pair,
-                    from_date=HISTORICAL_START,
-                    to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
-                    timeframe='H1',
-                )
+            df = fetch_with_fallback(
+                pydukascopy.get_historical_data,
+                param_name="timeframe",
+                intervals=["M1", "M5", "H1"] if minute_enabled else ["H1"],
+                pair=pair,
+                from_date=HISTORICAL_MINUTE_START if minute_enabled else HISTORICAL_START,
+                to_date=datetime.datetime.now().strftime('%Y-%m-%d'),
+            )
             df = df.dropna(subset=['Close', 'Volume']).sort_values('Timestamp').drop_duplicates('Timestamp')
             df['date'] = pd.to_datetime(df['Timestamp']).dt.isoformat()
             df['adjusted_close'] = df['Close']
@@ -404,34 +390,16 @@ def ingest_barchart(conn):
     minute_enabled = "barchart" in MINUTE_VALUABLE_SOURCES
     for symbol in BARCHART_SYMBOLS:
         try:
-            if minute_enabled:
-                try:
-                    historical = client.get_history(
-                        symbol,
-                        type='intraday',
-                        start=HISTORICAL_MINUTE_START,
-                        maxRecords=10000,
-                        order='asc',
-                        interval=1,
-                    )
-                except Exception:
-                    historical = client.get_history(
-                        symbol,
-                        type='intraday',
-                        start=HISTORICAL_MINUTE_START,
-                        maxRecords=10000,
-                        order='asc',
-                        interval=5,
-                    )
-            else:
-                historical = client.get_history(
-                    symbol,
-                    type='intraday',
-                    start=HISTORICAL_START,
-                    maxRecords=10000,
-                    order='asc',
-                    interval=60,
-                )
+            historical = fetch_with_fallback(
+                client.get_history,
+                param_name="interval",
+                intervals=[1, 5, 60] if minute_enabled else [60],
+                symbol=symbol,
+                type="intraday",
+                start=HISTORICAL_MINUTE_START if minute_enabled else HISTORICAL_START,
+                maxRecords=10000,
+                order="asc",
+            )
             df = pd.DataFrame(historical['results'])
             df = df.dropna(subset=['close', 'volume']).sort_values('timestamp').drop_duplicates('timestamp')
             df['date'] = pd.to_datetime(df['timestamp']).dt.isoformat()

@@ -12,11 +12,12 @@ def compute_vibe(
     replies: Optional[int] = None,
 ) -> Tuple[float, str]:
     """Compute a simplified vibe score from sentiment and engagement."""
-    # Normalize engagement counts so that missing or negative values don't
-    # artificially lower the vibe score.
-    likes = max(0, likes or 0)
-    retweets = max(0, retweets or 0)
-    replies = max(0, replies or 0)
+    # Normalize engagement counts. ``None`` values are treated as zero, but
+    # negative values are allowed to reduce the vibe score to reflect
+    # potentially adverse reactions.
+    likes = likes if likes is not None else 0
+    retweets = retweets if retweets is not None else 0
+    replies = replies if replies is not None else 0
     engagement = (likes + retweets * 2 + replies) / 1000.0
     base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
     vibe_score = (base_score + engagement) * 5
@@ -67,15 +68,18 @@ def fetch_with_fallback(
         except Exception as exc:  # pragma: no cover - depends on runtime errors
             last_exc = exc
             resp = getattr(exc, "response", None)
-            if resp is not None and getattr(resp, "status_code", None) == 429:
+            status = getattr(resp, "status_code", None)
+            if status == 429:
                 wait = int(getattr(resp, "headers", {}).get("Retry-After", 60))
                 logging.warning("Rate limited, waiting %s seconds", wait)
                 time.sleep(wait)
-            else:
+            elif status is not None and status >= 500:
                 logging.warning(
-                    "Fetch failed with %s=%s: %s", param_name, interval, exc
+                    "Server error %s for %s=%s, backing off", status, param_name, interval
                 )
                 time.sleep(pause)
+            else:
+                raise
     if last_exc:
         raise last_exc
 
