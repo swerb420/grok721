@@ -70,15 +70,18 @@ def fetch_with_fallback(
         except Exception as exc:  # pragma: no cover - depends on runtime errors
             last_exc = exc
             resp = getattr(exc, "response", None)
-            if resp is not None and getattr(resp, "status_code", None) == 429:
+            status = getattr(resp, "status_code", None)
+            if status == 429:
                 wait = int(getattr(resp, "headers", {}).get("Retry-After", 60))
                 logging.warning("Rate limited, waiting %s seconds", wait)
                 time.sleep(wait)
-            else:
+            elif status is not None and status >= 500:
                 logging.warning(
-                    "Fetch failed with %s=%s: %s", param_name, interval, exc
+                    "Server error %s for %s=%s, backing off", status, param_name, interval
                 )
                 time.sleep(pause)
+            else:
+                raise
     if last_exc:
         raise last_exc
 
