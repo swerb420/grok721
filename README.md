@@ -5,11 +5,11 @@ This repository contains several example data pipeline scripts. `main.py` provid
 ## Pipeline overview
 - `main.py` – basic ingestion example.
 - `async_pipeline.py` – asynchronous variant using `aiohttp`.
-- `extra_pipeline.py` – adds additional ingestion functions.
-- `advanced_pipeline.py` – full pipeline with database setup and concurrency.
-- `mega_pipeline.py` – expanded version with more sources.
-- `ultimate_pipeline.py` – maximal demonstration combining all features.
-- `untrimmed_pipeline.py` – raw variant containing the full import stack.
+- `extra_pipeline.py` – **experimental** expanded ingestion example.
+- `advanced_pipeline.py` – **experimental** pipeline with many placeholders.
+- `mega_pipeline.py` – **experimental** build with numerous sources.
+- `ultimate_pipeline.py` – **experimental** maximal demonstration.
+- `untrimmed_pipeline.py` – **experimental** raw variant with the full import stack.
 
 Additional resources describing the Dune Analytics dashboards referenced by
 the pipelines can be found in [docs/dune_dashboards.md](docs/dune_dashboards.md).
@@ -22,10 +22,11 @@ Install the base requirements for the lightweight scripts:
 pip install -r requirements.txt
 ```
 
-The packages in `requirements-extra.txt` are optional and only needed for the
-advanced pipelines (`extra_pipeline.py`, `advanced_pipeline.py`,
-`mega_pipeline.py`, `ultimate_pipeline.py`, `untrimmed_pipeline.py`). Install
-them in addition to the base requirements if you want to run those scripts:
+The packages in `requirements-extra.txt` are optional and are only needed for
+the experimental pipelines (`extra_pipeline.py`, `advanced_pipeline.py`,
+`mega_pipeline.py`, `ultimate_pipeline.py`, `untrimmed_pipeline.py`).
+Install them in addition to the base requirements if you want to explore these
+scripts:
 
 ```bash
 pip install -r requirements.txt -r requirements-extra.txt

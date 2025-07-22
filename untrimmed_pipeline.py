@@ -1,4 +1,9 @@
-"""Original extended pipeline without pruning."""
+"""Original extended pipeline without pruning.
+
+This script contains the raw, unedited experiment code from early
+development.  It should be viewed as a reference and is not intended to
+run in a production environment.
+"""
 
 import os
 import json
