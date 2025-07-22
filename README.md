@@ -16,6 +16,17 @@ the pipelines can be found in [docs/dune_dashboards.md](docs/dune_dashboards.md)
 
 ## Dependencies
 
+Create and activate a local virtual environment before installing
+the requirements:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Using a virtual environment helps keep dependencies isolated on macOS and
+prevents conflicts with system packages.
+
 The `requirements.txt` file now contains only the minimal packages needed to
 run `main.py` and `async_pipeline.py`.
 Install these core dependencies first:
@@ -59,6 +70,9 @@ The `HISTORICAL_START` variable controls how far back tweets are fetched and
 defaults to `2017-01-01`.
 Refer to `.env.example` for the complete list of supported variables.
 
+The `MAX_TWEETS_PER_USER` setting controls how many tweets are fetched for each
+username. Smaller values reduce API usage and memory footprint.
+
 ## Running the async pipeline
 
 For a lightweight example that works well on machines with limited memory,
@@ -67,6 +81,13 @@ install the dependencies and run `async_pipeline.py`:
 ```bash
 pip install -r requirements.txt
 python async_pipeline.py
+```
+
+For additional performance, you can install [`uvloop`](https://github.com/MagicStack/uvloop)
+to replace the default event loop on Unix-like systems:
+
+```bash
+pip install uvloop  # optional
 ```
 
 The async version uses `aiohttp` for non-blocking requests and stores
@@ -80,6 +101,15 @@ root:
 
 ```bash
 pytest -q
+```
+
+## Docker
+
+Build a container image that runs the async pipeline:
+
+```bash
+docker build -t grok721 .
+docker run --rm --env-file .env grok721
 ```
 
 ## License
