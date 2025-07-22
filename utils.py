@@ -1,5 +1,5 @@
 """Utility functions used across pipeline scripts."""
-from typing import Tuple, Optional, Callable, Any, List
+from typing import Tuple, Optional, Callable, Any, List, Iterable
 import time
 import logging
 
@@ -78,4 +78,11 @@ def fetch_with_fallback(
                 time.sleep(pause)
     if last_exc:
         raise last_exc
+
+
+def intervals_for_source(source: str, valuable_sources: Iterable[str]) -> List[str]:
+    """Return resolution intervals for a data source."""
+    if source in valuable_sources:
+        return ["1min", "5min", "1h"]
+    return ["1h", "1d"]
 
