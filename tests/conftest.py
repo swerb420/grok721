@@ -95,3 +95,10 @@ def db_module(stub_optional_dependencies):
     if 'pipelines.db' in sys.modules:
         return importlib.reload(sys.modules['pipelines.db'])
     return importlib.import_module('pipelines.db')
+
+
+@pytest.fixture
+def options_module(stub_optional_dependencies):
+    if 'pipelines.options' in sys.modules:
+        return importlib.reload(sys.modules['pipelines.options'])
+    return importlib.import_module('pipelines.options')
