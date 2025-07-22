@@ -29,7 +29,11 @@ def iterate_with_retry(client: ApifyClient, dataset_id: str):
     """Yield dataset items, retrying on transient errors."""
     offset = 0
     while True:
-        iterator = retry_func(client.dataset(dataset_id).iterate_items, offset=offset)
+        from itertools import islice
+
+        iterator = islice(
+            retry_func(client.dataset(dataset_id).iterate_items), offset, None
+        )
         got_any = False
         try:
             for item in iterator:
@@ -39,8 +43,7 @@ def iterate_with_retry(client: ApifyClient, dataset_id: str):
         except Exception as exc:  # pragma: no cover - best effort logging
             logging.warning("Dataset iteration failed: %s", exc)
             continue
-        if not got_any:
-            break
+        break
 
 USERNAMES = ["onchainlens", "unipcs", "stalkchain", "elonmusk", "example2"]
 MAX_TWEETS_PER_USER = 1000
@@ -155,7 +158,7 @@ def monitor_costs(client: ApifyClient) -> None:
         logging.warning("Unable to fetch Apify usage info: %s", exc)
 
 
-def iterate_with_retry(
+def iterate_with_retry_func(
     iter_func: Callable[[], Iterable[Any]], *, retries: int = 5, base_backoff: float = 1.0
 ) -> Iterable[Any]:
     """Yield items from ``iter_func`` with simple retry logic."""

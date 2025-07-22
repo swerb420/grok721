@@ -1,6 +1,10 @@
 """Asynchronous version of the simplified data pipeline."""
 
 import asyncio
+try:
+    import uvloop
+except Exception:  # pragma: no cover - uvloop optional
+    uvloop = None
 import datetime
 import logging
 
@@ -211,4 +215,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    if uvloop is not None:
+        uvloop.install()
     asyncio.run(main())

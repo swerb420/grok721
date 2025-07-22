@@ -67,6 +67,13 @@ pip install -r requirements.txt
 python async_pipeline.py
 ```
 
+For additional performance, you can install [`uvloop`](https://github.com/MagicStack/uvloop)
+to replace the default event loop on Unix-like systems:
+
+```bash
+pip install uvloop  # optional
+```
+
 The async version uses `aiohttp` for non-blocking requests and stores
 gas price data in a local SQLite database. On low-memory systems it is
 often more stable than the synchronous pipelines.
