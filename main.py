@@ -122,9 +122,10 @@ def retry_func(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
 # Database
 # ---------------------------------------------------------------------------
 
-def init_db() -> sqlite3.Connection:
+def init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
     """Initialise the SQLite database and required tables."""
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cur = conn.cursor()
     cur.execute(
         """
@@ -361,27 +362,27 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    conn = init_db()
-    client = ApifyClient(APIFY_TOKEN)
-    bot = Bot(TELEGRAM_BOT_TOKEN)
+    with sqlite3.connect(DB_FILE, check_same_thread=False) as conn:
+        init_db(conn)
+        client = ApifyClient(APIFY_TOKEN)
+        bot = Bot(TELEGRAM_BOT_TOKEN)
 
-    ingest_gas_prices(conn)
-    fetch_tweets(client, conn, bot)
+        ingest_gas_prices(conn)
+        fetch_tweets(client, conn, bot)
 
-    # Example of scheduled periodic ingestion
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(lambda: fetch_tweets(client, conn, bot), "interval", hours=1)
-    scheduler.add_job(lambda: ingest_gas_prices(conn), "interval", hours=6)
-    scheduler.start()
+        # Example of scheduled periodic ingestion
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(lambda: fetch_tweets(client, conn, bot), "interval", hours=1)
+        scheduler.add_job(lambda: ingest_gas_prices(conn), "interval", hours=6)
+        scheduler.start()
 
-    logging.info("Scheduler started. Press Ctrl+C to exit.")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        scheduler.shutdown()
-        logging.info("Shutdown complete")
-        conn.close()
+        logging.info("Scheduler started. Press Ctrl+C to exit.")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            scheduler.shutdown()
+            logging.info("Shutdown complete")
 
 
 if __name__ == "__main__":

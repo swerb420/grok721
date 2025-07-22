@@ -148,8 +148,9 @@ lda_gs = GridSearchCV(LatentDirichletAllocation(random_state=42, n_jobs=-1, lear
 db_lock = threading.Lock()
 
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=180, isolation_level=None)  # Auto-commit, 3 min timeout
+def init_db(conn: sqlite3.Connection | None = None):
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=180, isolation_level=None)  # Auto-commit, 3 min timeout
     cur = conn.cursor()
     cur.execute('PRAGMA journal_mode=WAL;')
     cur.execute('PRAGMA synchronous = NORMAL;')
@@ -338,8 +339,9 @@ def ingest_quicknode(conn):
 
 def main():
     # Placeholder main simply initializes DB
-    conn = init_db()
-    logging.info("Ultimate pipeline initialized")
+    with sqlite3.connect(DB_FILE, check_same_thread=False, timeout=180, isolation_level=None) as conn:
+        init_db(conn)
+        logging.info("Ultimate pipeline initialized")
 
 if __name__ == "__main__":
     main()
