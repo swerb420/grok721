@@ -13,7 +13,11 @@ def compute_vibe(
 ) -> Tuple[float, str]:
     """Compute a simplified vibe score from sentiment and engagement."""
     # Normalize engagement counts so that missing or negative values don't
-    # artificially lower the vibe score.
+    # artificially lower the vibe score. Track whether any negative values were
+    # provided so extremely inconsistent data can still yield a low label.
+    has_negative = any(
+        x is not None and x < 0 for x in (likes, retweets, replies)
+    )
     likes = max(0, likes or 0)
     retweets = max(0, retweets or 0)
     replies = max(0, replies or 0)
@@ -28,6 +32,8 @@ def compute_vibe(
     elif vibe_score > 3:
         vibe_label = "Controversial/Mixed"
     else:
+        vibe_label = "Negative/Low Engagement"
+    if has_negative:
         vibe_label = "Negative/Low Engagement"
     return vibe_score, vibe_label
 
