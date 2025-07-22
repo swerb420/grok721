@@ -16,7 +16,9 @@ the pipelines can be found in [docs/dune_dashboards.md](docs/dune_dashboards.md)
 
 ## Dependencies
 
-Install the base requirements for the lightweight scripts:
+The `requirements.txt` file now contains only the minimal packages needed to
+run `main.py` and `async_pipeline.py`.
+Install these core dependencies first:
 
 ```bash
 pip install -r requirements.txt
