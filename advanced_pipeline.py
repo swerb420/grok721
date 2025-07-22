@@ -93,8 +93,9 @@ def compute_sentiment(text):
     return "NEUTRAL", 0.5
 
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=60)  # Longer timeout
+def init_db(conn: sqlite3.Connection | None = None):
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False, timeout=60)  # Longer timeout
     cur = conn.cursor()
     cur.execute('PRAGMA journal_mode=WAL;')
     cur.execute('PRAGMA synchronous = NORMAL;')
@@ -500,9 +501,9 @@ def list_accounts(update, context):
 # main with expanded concurrency
 def main():
     """Run the minimal working portion of the advanced pipeline."""
-    conn = init_db()
-    ingest_free_datasets(conn)
-    conn.close()
+    with sqlite3.connect(DB_FILE, check_same_thread=False, timeout=60) as conn:
+        init_db(conn)
+        ingest_free_datasets(conn)
 
 if __name__ == "__main__":
     main()

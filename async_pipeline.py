@@ -25,8 +25,9 @@ DB_FILE = get_config("DB_FILE", "super_db.db")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-async def init_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+async def init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     cur = conn.cursor()
     cur.execute(
         """
