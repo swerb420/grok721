@@ -57,6 +57,9 @@ DUNE_WALLET_BALANCES_QUERY_ID
 ```
 Refer to `.env.example` for the complete list of supported variables.
 
+The `MAX_TWEETS_PER_USER` setting controls how many tweets are fetched for each
+username. Smaller values reduce API usage and memory footprint.
+
 ## Running the async pipeline
 
 For a lightweight example that works well on machines with limited memory,
