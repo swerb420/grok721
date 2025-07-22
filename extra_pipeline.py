@@ -1,4 +1,9 @@
-"""Expanded pipeline with advanced analytics and approval workflow."""
+"""Expanded pipeline with advanced analytics and approval workflow.
+
+This script is an **experimental example** that combines many different
+features.  It is retained for reference and may require significant
+configuration to run successfully.
+"""
 
 import os
 import json

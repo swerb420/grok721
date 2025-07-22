@@ -359,7 +359,7 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
         conn.commit()
         logging.info("Ingested current gas prices")
 
-    rows = execute_dune_query(DUNE_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(DUNE_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL)
     for row in rows:
         try:
             timestamp = row.get("day", datetime.datetime.utcnow().isoformat())
@@ -376,55 +376,71 @@ def ingest_gas_prices(conn: sqlite3.Connection) -> None:
 
 
 def ingest_hyperliquid_stats(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(HYPERLIQUID_STATS_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        HYPERLIQUID_STATS_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, HYPERLIQUID_STATS_QUERY_ID, rows)
     logging.info("Stored %s Hyperliquid stats rows", len(rows))
 
 
 def ingest_hyperliquid(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(HYPERLIQUID_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        HYPERLIQUID_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, HYPERLIQUID_QUERY_ID, rows)
     logging.info("Stored %s Hyperliquid rows", len(rows))
 
 
 def ingest_gmx_analytics(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(GMX_ANALYTICS_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        GMX_ANALYTICS_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, GMX_ANALYTICS_QUERY_ID, rows)
     logging.info("Stored %s GMX analytics rows", len(rows))
 
 
 def ingest_hyperliquid_flows(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(HYPERLIQUID_FLOWS_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        HYPERLIQUID_FLOWS_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, HYPERLIQUID_FLOWS_QUERY_ID, rows)
     logging.info("Stored %s Hyperliquid flow rows", len(rows))
 
 
 def ingest_perps_hyperliquid(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(PERPS_HYPERLIQUID_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        PERPS_HYPERLIQUID_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, PERPS_HYPERLIQUID_QUERY_ID, rows)
     logging.info("Stored %s perps/hyperliquid rows", len(rows))
 
 
 def ingest_gmx_io(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(GMX_IO_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(GMX_IO_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL)
     store_dune_rows(conn, GMX_IO_QUERY_ID, rows)
     logging.info("Stored %s GMX.io rows", len(rows))
 
 
 def ingest_airdrops_wallets(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(AIRDROPS_WALLETS_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        AIRDROPS_WALLETS_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, AIRDROPS_WALLETS_QUERY_ID, rows)
     logging.info("Stored %s airdrop wallet rows", len(rows))
 
 
 def ingest_smart_wallet_finder(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(SMART_WALLET_FINDER_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        SMART_WALLET_FINDER_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, SMART_WALLET_FINDER_QUERY_ID, rows)
     logging.info("Stored %s smart wallet rows", len(rows))
 
 
 def ingest_wallet_balances(conn: sqlite3.Connection) -> None:
-    rows = execute_dune_query(WALLET_BALANCES_QUERY_ID, DUNE_API_KEY)
+    rows = execute_dune_query(
+        WALLET_BALANCES_QUERY_ID, DUNE_API_KEY, max_poll=DUNE_MAX_POLL
+    )
     store_dune_rows(conn, WALLET_BALANCES_QUERY_ID, rows)
     logging.info("Stored %s wallet balance rows", len(rows))
 

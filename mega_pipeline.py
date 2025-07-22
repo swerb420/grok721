@@ -1,4 +1,9 @@
-"""Mega pipeline exploring numerous integrations."""
+"""Mega pipeline exploring numerous integrations.
+
+This module serves as a **research prototype** showing how various data
+sources might be combined.  It is not intended for production use and may
+contain incomplete pieces.
+"""
 
 import os
 import json
