@@ -2,14 +2,14 @@ import pytest
 from utils import compute_vibe
 
 
-def setup_in_memory_db(monkeypatch, main):
-    monkeypatch.setattr(main, "DB_FILE", ":memory:")
-    return main.init_db()
+def setup_in_memory_db(monkeypatch, db_module):
+    monkeypatch.setattr(db_module, "DB_FILE", ":memory:")
+    return db_module.init_db()
 
 
-def test_store_tweet_inserts(monkeypatch, main_module):
-    conn = setup_in_memory_db(monkeypatch, main_module)
-    monkeypatch.setattr(main_module, "sentiment_analyzer", lambda text: [{"label": "POSITIVE", "score": 0.5}])
+def test_store_tweet_inserts(monkeypatch, tweets_module, db_module):
+    conn = setup_in_memory_db(monkeypatch, db_module)
+    monkeypatch.setattr(tweets_module, "sentiment_analyzer", lambda text: [{"label": "POSITIVE", "score": 0.5}])
     item = {
         "id": "123",
         "user": {"username": "alice"},
@@ -20,7 +20,7 @@ def test_store_tweet_inserts(monkeypatch, main_module):
         "reply_count": 1,
         "media": ["img1"],
     }
-    tweet = main_module.store_tweet(conn, item)
+    tweet = tweets_module.store_tweet(conn, item)
 
     cur = conn.cursor()
     row = cur.execute(

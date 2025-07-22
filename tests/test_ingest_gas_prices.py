@@ -3,17 +3,17 @@ import sqlite3
 import pytest
 
 
-def setup_in_memory_db(monkeypatch: pytest.MonkeyPatch, main):
-    monkeypatch.setattr(main, 'DB_FILE', ':memory:')
-    return main.init_db()
+def setup_in_memory_db(monkeypatch: pytest.MonkeyPatch, db_module):
+    monkeypatch.setattr(db_module, 'DB_FILE', ':memory:')
+    return db_module.init_db()
 
 
-def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, main_module):
-    conn = setup_in_memory_db(monkeypatch, main_module)
+def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, gas_module, dune_module, db_module):
+    conn = setup_in_memory_db(monkeypatch, db_module)
 
-    monkeypatch.setattr(main_module, 'DUNE_MAX_POLL', 1)
-    monkeypatch.setattr(main_module.time, 'sleep', lambda s: None)
-    monkeypatch.setattr(main_module, 'retry_func', lambda func, *a, **kw: func(*a, **kw))
+    monkeypatch.setattr(gas_module, 'DUNE_MAX_POLL', 1)
+    monkeypatch.setattr(gas_module.time, 'sleep', lambda s: None)
+    monkeypatch.setattr(gas_module, 'retry_func', lambda func, *a, **kw: func(*a, **kw))
 
     def dummy_get(url, *a, **kw):
         if 'gaschart' in url:
@@ -31,10 +31,12 @@ def test_ingest_gas_prices_inserts(monkeypatch: pytest.MonkeyPatch, main_module)
             return types.SimpleNamespace(json=lambda: {'execution_id': 'xyz'})
         raise AssertionError(f'Unexpected POST {url}')
 
-    monkeypatch.setattr(main_module.requests, 'get', dummy_get)
-    monkeypatch.setattr(main_module.requests, 'post', dummy_post)
+    monkeypatch.setattr(gas_module.requests, 'get', dummy_get)
+    monkeypatch.setattr(gas_module.requests, 'post', dummy_post)
+    monkeypatch.setattr(dune_module.requests, 'get', dummy_get)
+    monkeypatch.setattr(dune_module.requests, 'post', dummy_post)
 
-    main_module.ingest_gas_prices(conn)
+    gas_module.ingest_gas_prices(conn)
 
     cur = conn.cursor()
     rows = cur.execute(

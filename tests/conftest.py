@@ -67,3 +67,31 @@ def main_module(stub_optional_dependencies):
     if 'main' in sys.modules:
         return importlib.reload(sys.modules['main'])
     return importlib.import_module('main')
+
+
+@pytest.fixture
+def gas_module(stub_optional_dependencies):
+    if 'pipelines.gas' in sys.modules:
+        return importlib.reload(sys.modules['pipelines.gas'])
+    return importlib.import_module('pipelines.gas')
+
+
+@pytest.fixture
+def dune_module(stub_optional_dependencies):
+    if 'pipelines.dune' in sys.modules:
+        return importlib.reload(sys.modules['pipelines.dune'])
+    return importlib.import_module('pipelines.dune')
+
+
+@pytest.fixture
+def tweets_module(stub_optional_dependencies):
+    if 'pipelines.tweets' in sys.modules:
+        return importlib.reload(sys.modules['pipelines.tweets'])
+    return importlib.import_module('pipelines.tweets')
+
+
+@pytest.fixture
+def db_module(stub_optional_dependencies):
+    if 'pipelines.db' in sys.modules:
+        return importlib.reload(sys.modules['pipelines.db'])
+    return importlib.import_module('pipelines.db')
