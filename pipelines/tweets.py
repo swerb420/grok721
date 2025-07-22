@@ -69,7 +69,12 @@ def store_tweet(conn: sqlite3.Connection, item: dict) -> TweetData:
     )
     media_json = json.dumps(tweet.media)
 
-    sentiment = sentiment_analyzer(tweet.text[:512])[0]
+    try:
+        sentiment = sentiment_analyzer(tweet.text[:512])[0]
+    except Exception as exc:  # pragma: no cover - optional model may fail
+        logging.warning("Sentiment analysis failed: %s", exc)
+        sentiment = {"label": "NEUTRAL", "score": 0.0}
+
     vibe_score, vibe_label = compute_vibe(
         sentiment["label"], sentiment["score"], tweet.likes, tweet.retweets, tweet.replies
     )
