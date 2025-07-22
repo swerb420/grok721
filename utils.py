@@ -15,9 +15,11 @@ def compute_vibe(
     # Normalize engagement counts so that missing or negative values don't
     # artificially lower the vibe score.
     # Preserve negative counts to penalize posts receiving backlash or bot spam
-    likes = likes or 0
-    retweets = retweets or 0
-    replies = replies or 0
+    # Treat ``None`` as zero and clip negative engagement counts at zero so they
+    # do not incorrectly reduce the vibe score.
+    likes = max(0, likes or 0)
+    retweets = max(0, retweets or 0)
+    replies = max(0, replies or 0)
     engagement = (likes + retweets * 2 + replies) / 1000.0
     base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
     vibe_score = (base_score + engagement) * 5
@@ -30,8 +32,8 @@ def compute_vibe(
         vibe_label = "Controversial/Mixed"
     else:
         vibe_label = "Negative/Low Engagement"
-    if has_negative:
-        vibe_label = "Negative/Low Engagement"
+    # ``has_negative`` was referenced in the long snippet but is undefined. The
+    # original simplified implementation does not use it, so we omit that logic.
     return vibe_score, vibe_label
 
 
