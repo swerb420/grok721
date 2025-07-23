@@ -10,6 +10,7 @@ This repository contains several example data pipeline scripts. `main.py` provid
 - `mega_pipeline.py` – **experimental** build with numerous sources.
 - `ultimate_pipeline.py` – **experimental** maximal demonstration.
 - `untrimmed_pipeline.py` – **experimental** raw variant with the full import stack.
+- `sentiment_pipeline.py` – experimental sentiment-driven trading pipeline.
 - `ingest_yfinance_options` – helper for storing basic stock option chains.
 
 Additional resources describing the Dune Analytics dashboards referenced by

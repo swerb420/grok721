@@ -33,3 +33,4 @@ blockchair
 glassnode
 pillow
 uvloop  # optional, speeds up asyncio on Unix-like systems
+TA-Lib
