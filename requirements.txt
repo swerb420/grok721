@@ -6,3 +6,4 @@ python-telegram-bot
 requests
 tenacity
 transformers
+psutil
