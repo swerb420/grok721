@@ -3,8 +3,14 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
+  - aiohttp
   - apscheduler
+  - psutil
+  - python-dotenv
   - python-telegram-bot
+  - requests
+  - tenacity
+  - pandas
   - pip
   - pip:
       - apify-client

@@ -30,11 +30,20 @@ Using a virtual environment helps keep dependencies isolated on macOS and
 prevents conflicts with system packages.
 
 The `requirements.txt` file now contains only the minimal packages needed to
-run `main.py` and `async_pipeline.py`.
+run `main.py` and `async_pipeline.py`. You can install them either with
+`pip` as shown below or via the provided Conda environment.
 Install these core dependencies first:
 
 ```bash
 pip install -r requirements.txt
+```
+
+If you prefer Conda, create the environment defined in
+`environment.yml` instead:
+
+```bash
+conda env create -f environment.yml
+conda activate grok721
 ```
 
 The packages in `requirements-extra.txt` are optional and are only needed for
@@ -46,6 +55,9 @@ scripts:
 ```bash
 pip install -r requirements.txt -r requirements-extra.txt
 ```
+
+When using Conda, activate the `grok721` environment first and then run the
+same `pip` command to add these extras.
 
 
 ## Configuration
