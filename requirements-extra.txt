@@ -1,5 +1,6 @@
 # Optional dependencies for advanced pipeline scripts
 # Install in addition to requirements.txt
+# Packages with limited Python version support are marked with notes below
 
 pandas
 numpy
@@ -23,7 +24,7 @@ PyGithub
 imfdatapy
 eodhd
 twelvedata
-pydukascopy
+pydukascopy  # requires Python < 3.11, install from source if needed
 barchart-ondemand-client-python
 fmp-python
 moralis
