@@ -8,6 +8,7 @@ blocking until a minimum amount of free memory is detected.
 from __future__ import annotations
 
 from typing import Iterable, List
+import logging
 import subprocess
 import time
 
@@ -24,6 +25,7 @@ def run_when_memory_free(
     min_free_mb: int,
     check_interval: int = 5,
     timeout: int | None = None,
+    raise_on_error: bool = False,
 ) -> int:
     """Run *cmd* when at least ``min_free_mb`` of memory is free.
 
@@ -40,6 +42,10 @@ def run_when_memory_free(
         time.sleep(check_interval)
 
     result = subprocess.run(cmd)
+    if result.returncode != 0:
+        logging.error("Command %s failed with return code %s", cmd, result.returncode)
+        if raise_on_error:
+            raise subprocess.CalledProcessError(result.returncode, cmd)
     return result.returncode
 
 
@@ -47,10 +53,16 @@ def schedule_commands(
     commands: Iterable[List[str]],
     min_free_mb: int,
     check_interval: int = 5,
+    raise_on_error: bool = False,
 ) -> None:
     """Run a sequence of commands when enough memory is available."""
     for cmd in commands:
-        run_when_memory_free(cmd, min_free_mb, check_interval)
+        run_when_memory_free(
+            cmd,
+            min_free_mb,
+            check_interval,
+            raise_on_error=raise_on_error,
+        )
 
 
 if __name__ == "__main__":

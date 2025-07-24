@@ -31,15 +31,17 @@ class EventBus:
     """In-memory async event bus"""
 
     def __init__(self):
-        self._queue: asyncio.Queue[Event] = asyncio.Queue()
+        self._queue: asyncio.Queue[Optional[Event]] = asyncio.Queue()
 
-    async def publish(self, event: Event) -> None:
+    async def publish(self, event: Optional[Event]) -> None:
         await self._queue.put(event)
 
     async def consume(self):
         while True:
             event = await self._queue.get()
             yield event
+            if event is None:
+                break
 
 
 class EventStore:
@@ -104,9 +106,12 @@ class EventDrivenPipeline:
     async def start(self):
         self._running = True
         async for event in self.bus.consume():
+            if event is None:
+                break
             if not self._running:
                 break
             await self._handle(event)
 
     async def stop(self):
         self._running = False
+        await self.bus.publish(None)

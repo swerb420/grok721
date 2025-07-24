@@ -53,6 +53,12 @@ def stub_optional_dependencies():
         requests.post = lambda *a, **k: _resp()
         sys.modules['requests'] = requests
 
+    # psutil
+    if 'psutil' not in sys.modules:
+        psutil = types.ModuleType('psutil')
+        psutil.virtual_memory = lambda: types.SimpleNamespace(available=0)
+        sys.modules['psutil'] = psutil
+
     # If utils was imported before stubbing requests, ensure it uses the stub
     if 'utils' in sys.modules:
         utils = sys.modules['utils']

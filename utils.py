@@ -1,7 +1,9 @@
 """Utility functions used across pipeline scripts."""
+
 from typing import Tuple, Optional, Callable, Any, List, Iterable
 import time
 import logging
+
 try:  # pragma: no cover - optional dependency for tests
     import requests
 except Exception:  # ModuleNotFoundError during tests
@@ -25,7 +27,12 @@ def compute_vibe(
     has_negative = any(x < 0 for x in (likes, retweets, replies))
 
     engagement = (likes + retweets * 2 + replies) / 1000.0
-    base_score = sentiment_score if sentiment_label == "POSITIVE" else -sentiment_score
+    if sentiment_label == "POSITIVE":
+        base_score = sentiment_score
+    elif sentiment_label == "NEGATIVE":
+        base_score = -sentiment_score
+    else:
+        base_score = 0.0
     vibe_score = (base_score + engagement) * 5
     vibe_score = min(max(vibe_score, 0), 10)
     if vibe_score > 7:
@@ -78,12 +85,19 @@ def fetch_with_fallback(
             resp = getattr(exc, "response", None)
             status = getattr(resp, "status_code", None)
             if status == 429:
-                wait = int(getattr(resp, "headers", {}).get("Retry-After", 60))
+                raw_wait = getattr(resp, "headers", {}).get("Retry-After", "60")
+                try:
+                    wait = int(raw_wait)
+                except (TypeError, ValueError):
+                    wait = 60
                 logging.warning("Rate limited, waiting %s seconds", wait)
                 time.sleep(wait)
             elif status is not None and status >= 500:
                 logging.warning(
-                    "Server error %s for %s=%s, backing off", status, param_name, interval
+                    "Server error %s for %s=%s, backing off",
+                    status,
+                    param_name,
+                    interval,
                 )
                 time.sleep(pause)
             else:
