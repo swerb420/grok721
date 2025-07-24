@@ -7,6 +7,7 @@ check for demonstration."""
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
+import logging
 
 
 @dataclass
@@ -42,7 +43,9 @@ class SmartAlerts:
                         timestamp=datetime.utcnow(),
                     )
                     triggered.append(alert)
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.exception(
+                    "SmartAlerts rule '%s' raised an exception", rule.get("name")
+                )
         self.alerts.extend(triggered)
         return triggered
