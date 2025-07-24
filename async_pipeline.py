@@ -38,7 +38,7 @@ DUNE_MAX_POLL = 60  # Maximum poll attempts (~5 minutes)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-async def init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
+async def async_init_db(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
     """Initialize the database using the synchronous helper."""
     return await asyncio.to_thread(sync_init_db, conn)
 
@@ -206,7 +206,7 @@ async def ingest_wallet_balances(conn: sqlite3.Connection) -> None:
 
 
 async def main() -> None:
-    conn = await init_db()
+    conn = await async_init_db()
     try:
         async with aiohttp.ClientSession() as session:
             await ingest_gas_prices(session, conn)
