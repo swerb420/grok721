@@ -33,6 +33,12 @@ class BacktestingEngine:
         for timestamp, row in data.iterrows():
             signal = strategy.generate_signal(timestamp, row, data.loc[:timestamp])
             if signal and signal.get('action') == 'buy':
-                trade = Trade(timestamp, timestamp, row['close'], row['close'], 'long', 1)
+                entry_price = row.get('open', row['close'])
+                trade = Trade(timestamp, timestamp, entry_price, row['close'], 'long', 1)
                 self.trades.append(trade)
-        return {'trades': len(self.trades)}
+                self.capital += trade.pnl
+        return {
+            'trades': len(self.trades),
+            'final_capital': self.capital,
+            'cumulative_profit': self.capital - self.initial_capital,
+        }
