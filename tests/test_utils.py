@@ -27,6 +27,12 @@ def test_compute_vibe_labels(
     assert label == expected_label
 
 
+@pytest.mark.parametrize("sentiment_label", ["NEUTRAL", "UNKNOWN"])
+def test_compute_vibe_neutral_unknown(sentiment_label):
+    score, _ = compute_vibe(sentiment_label, 0.8, 100, 0, 0)
+    assert score == pytest.approx(0.5)
+
+
 @pytest.mark.parametrize(
     "likes,retweets,replies",
     [
