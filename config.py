@@ -38,6 +38,12 @@ def _is_placeholder(value: str) -> bool:
 def get_config(name: str, default: Optional[str] = None) -> str:
     """Retrieve configuration from environment variables."""
     env_value = os.getenv(name)
+    if env_value is not None and _is_placeholder(env_value):
+        warnings.warn(
+            f"Configuration {name} is using a placeholder value: {env_value}",
+            RuntimeWarning,
+        )
+
     value = env_value if env_value is not None else default
     if value is None:
         raise RuntimeError(f"Missing configuration for {name}")
