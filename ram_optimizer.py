@@ -24,16 +24,23 @@ def run_when_memory_free(
     cmd: List[str],
     min_free_mb: int,
     check_interval: int = 5,
+    timeout: int | None = None,
     raise_on_error: bool = False,
 ) -> int:
     """Run *cmd* when at least ``min_free_mb`` of memory is free.
 
     The function checks memory usage every ``check_interval`` seconds and
-    blocks until enough memory is available. The command's exit code is
-    returned.
+    blocks until enough memory is available. If ``timeout`` is provided, the
+    wait is limited to at most that many seconds. When the timeout expires the
+    function returns ``1`` without executing the command. The command's exit
+    code is returned when it does run.
     """
+    start = time.time()
     while available_memory_mb() < min_free_mb:
+        if timeout is not None and time.time() - start >= timeout:
+            return 1
         time.sleep(check_interval)
+
     result = subprocess.run(cmd)
     if result.returncode != 0:
         logging.error("Command %s failed with return code %s", cmd, result.returncode)

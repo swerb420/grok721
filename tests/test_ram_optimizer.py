@@ -37,6 +37,33 @@ def test_run_when_memory_free(monkeypatch):
     assert cmd == [["echo", "hi"]]
 
 
+def test_run_when_memory_free_timeout(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(ram_optimizer, "available_memory_mb", lambda: 100)
+
+    times = [0, 1, 2]
+
+    def fake_time():
+        return times.pop(0)
+
+    monkeypatch.setattr(ram_optimizer.time, "time", fake_time)
+    monkeypatch.setattr(ram_optimizer.time, "sleep", lambda s: calls.append(s))
+
+    monkeypatch.setattr(
+        ram_optimizer.subprocess,
+        "run",
+        lambda c: (_ for _ in ()).throw(AssertionError("command should not run")),
+    )
+
+    rc = ram_optimizer.run_when_memory_free([
+        "echo",
+        "hi",
+    ], 500, check_interval=1, timeout=2)
+    assert rc == 1
+    assert len(calls) == 1
+
+
 def test_schedule_commands(monkeypatch):
     executed = []
     monkeypatch.setattr(
