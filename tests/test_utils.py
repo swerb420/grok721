@@ -56,29 +56,49 @@ class DummyError(Exception):
 
 def test_fetch_with_fallback_retries(monkeypatch):
     import utils
-    monkeypatch.setattr(utils.time, 'sleep', lambda s: None)
+
+    monkeypatch.setattr(utils.time, "sleep", lambda s: None)
     calls = []
 
-    def fake_fetch(interval='1min'):
+    def fake_fetch(interval="1min"):
         calls.append(interval)
         if len(calls) < 2:
             raise DummyError(429)
-        return {'used': interval}
+        return {"used": interval}
 
     result = fetch_with_fallback(fake_fetch)
-    assert result == {'used': '5min'}
-    assert calls == ['1min', '5min']
+    assert result == {"used": "5min"}
+    assert calls == ["1min", "5min"]
 
 
 def test_fetch_with_fallback_failure(monkeypatch):
     import utils
-    monkeypatch.setattr(utils.time, 'sleep', lambda s: None)
 
-    def always_fail(interval='1min'):
+    monkeypatch.setattr(utils.time, "sleep", lambda s: None)
+
+    def always_fail(interval="1min"):
         raise DummyError(500)
 
     with pytest.raises(DummyError):
         fetch_with_fallback(always_fail, pause=0)
+
+
+def test_fetch_with_fallback_invalid_retry_after(monkeypatch):
+    import utils
+
+    sleeps = []
+    monkeypatch.setattr(utils.time, "sleep", lambda s: sleeps.append(s))
+
+    def fake_fetch(interval="1min"):
+        if interval == "1min":
+            err = DummyError(429)
+            err.response.headers["Retry-After"] = "oops"
+            raise err
+        return {"used": interval}
+
+    result = fetch_with_fallback(fake_fetch)
+    assert result == {"used": "5min"}
+    assert sleeps == [60]
 
 
 def test_intervals_for_source():

@@ -1,7 +1,9 @@
 """Utility functions used across pipeline scripts."""
+
 from typing import Tuple, Optional, Callable, Any, List, Iterable
 import time
 import logging
+
 try:  # pragma: no cover - optional dependency for tests
     import requests
 except Exception:  # ModuleNotFoundError during tests
@@ -78,12 +80,19 @@ def fetch_with_fallback(
             resp = getattr(exc, "response", None)
             status = getattr(resp, "status_code", None)
             if status == 429:
-                wait = int(getattr(resp, "headers", {}).get("Retry-After", 60))
+                raw_wait = getattr(resp, "headers", {}).get("Retry-After", "60")
+                try:
+                    wait = int(raw_wait)
+                except (TypeError, ValueError):
+                    wait = 60
                 logging.warning("Rate limited, waiting %s seconds", wait)
                 time.sleep(wait)
             elif status is not None and status >= 500:
                 logging.warning(
-                    "Server error %s for %s=%s, backing off", status, param_name, interval
+                    "Server error %s for %s=%s, backing off",
+                    status,
+                    param_name,
+                    interval,
                 )
                 time.sleep(pause)
             else:
