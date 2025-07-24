@@ -173,19 +173,27 @@ def monitor_costs(client: ApifyClient) -> None:
 
 
 def iterate_with_retry_func(
-    iter_func: Callable[[], Iterable[Any]], *, retries: int = 5, base_backoff: float = 1.0
+    iter_func: Callable[[Any], Iterable[Any]], *, retries: int = 5, base_backoff: float = 1.0, resume: Any | None = None
 ) -> Iterable[Any]:
-    """Yield items from ``iter_func`` with simple retry logic."""
-    for attempt in range(retries):
+    """Yield items from ``iter_func`` with simple retry logic and resume support."""
+    attempt = 0
+    while attempt < retries:
         try:
-            for item in iter_func():
+            for item in iter_func(resume):
                 yield item
+                if isinstance(resume, int) or resume is None:
+                    resume = (resume or 0) + 1
+                else:
+                    resume = item
             return
         except Exception as exc:  # pragma: no cover - depends on runtime errors
-            if attempt >= retries - 1:
+            attempt += 1
+            if attempt >= retries:
                 raise
-            wait = base_backoff * (2 ** attempt) + random.random()
-            logging.warning("Retry %s/%s after iteration error: %s", attempt + 1, retries, exc)
+            wait = base_backoff * (2 ** (attempt - 1)) + random.random()
+            logging.warning(
+                "Retry %s/%s after iteration error: %s", attempt, retries, exc
+            )
             time.sleep(wait)
 
 
@@ -203,7 +211,10 @@ def fetch_tweets(client: ApifyClient, conn: sqlite3.Connection, bot: Bot) -> Non
     except Exception as exc:  # pragma: no cover - best effort logging
         logging.error("Error parsing Apify run result: %s", exc)
         return
-    for item in iterate_with_retry_func(lambda: client.dataset(dataset_id).iterate_items()):
+    def iter_items(offset: int = 0):
+        return client.dataset(dataset_id).iterate_items(offset=offset)
+
+    for item in iterate_with_retry_func(iter_items, resume=0):
         try:
             store_tweet(conn, item)
         except Exception as exc:  # pragma: no cover - best effort logging
