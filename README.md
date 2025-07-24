@@ -48,6 +48,18 @@ pip install -r requirements.txt -r requirements-extra.txt
 ```
 
 
+### Conda
+
+A minimal Conda environment is also provided for running `main.py` and `async_pipeline.py`:
+
+```bash
+conda env create -f environment.yml
+conda activate grok721
+```
+
+Install any optional packages from `requirements-extra.txt` with `pip` if you want to try the experimental pipelines.
+
+
 ## Configuration
 
 Create a copy of `.env.example` named `.env` and fill in your API
