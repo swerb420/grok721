@@ -1,4 +1,6 @@
 import types
+import subprocess
+import pytest
 import ram_optimizer
 
 
@@ -44,3 +46,26 @@ def test_schedule_commands(monkeypatch):
     )
     ram_optimizer.schedule_commands([["a"], ["b"]], 100)
     assert executed == [["a"], ["b"]]
+
+
+def test_run_when_memory_free_error(monkeypatch):
+    monkeypatch.setattr(ram_optimizer, "available_memory_mb", lambda: 1000)
+    monkeypatch.setattr(ram_optimizer.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        ram_optimizer.subprocess,
+        "run",
+        lambda c: types.SimpleNamespace(returncode=1),
+    )
+    rc = ram_optimizer.run_when_memory_free(["cmd"], 10)
+    assert rc == 1
+    with pytest.raises(subprocess.CalledProcessError):
+        ram_optimizer.run_when_memory_free(["cmd"], 10, raise_on_error=True)
+
+
+def test_schedule_commands_raises(monkeypatch):
+    def fake(cmd, *a, **k):
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(ram_optimizer, "run_when_memory_free", fake)
+    with pytest.raises(subprocess.CalledProcessError):
+        ram_optimizer.schedule_commands([["a"]], 100, raise_on_error=True)
