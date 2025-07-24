@@ -139,6 +139,7 @@ Run the unit tests with [`pytest`](https://docs.pytest.org/) from the repository
 root:
 
 ```bash
+pip install -r requirements.txt -r requirements-extra.txt
 pytest -q
 ```
 
