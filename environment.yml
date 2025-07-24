@@ -5,11 +5,11 @@ dependencies:
   - python=3.11
   - aiohttp
   - apscheduler
-  - psutil
   - python-dotenv
   - python-telegram-bot
   - requests
   - tenacity
+  - psutil
   - pandas
   - pip
   - pip:
