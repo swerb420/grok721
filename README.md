@@ -99,6 +99,16 @@ The `HISTORICAL_START` variable controls how far back tweets are fetched and
 defaults to `2017-01-01`.
 Refer to `.env.example` for the complete list of supported variables.
 
+The wallet detection pipeline additionally requires a few API keys:
+
+```
+QUICKNODE_RPC
+HELIUS_KEY
+BITQUERY_KEY
+YELLOWSTONE_ENDPOINT
+```
+
+
 The `MAX_TWEETS_PER_USER` setting controls how many tweets are fetched for each
 username. Smaller values reduce API usage and memory footprint.
 

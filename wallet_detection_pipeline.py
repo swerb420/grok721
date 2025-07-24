@@ -1,20 +1,22 @@
 """Experimental wallet detection pipeline.
 
-This module includes placeholder implementations for monitoring Solana
-wallet activity.  The heavy network integrations used in the original
-prototype are omitted.  The functions log their invocation and create
-empty data frames.  This keeps the example lightweight while preserving
-the overall structure.
+This module performs lightweight wallet monitoring using several public
+APIs.  The requests target QuickNode, Helius, Bitquery and other
+services to gather Solana transaction samples.  The code is simplified
+but stores real results in a local SQLite database for further analysis.
 """
 
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import sqlite3
 from typing import Any, Iterable
 
 import pandas as pd
+import requests
+from config import get_config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -22,7 +24,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Configuration stubs
 # ---------------------------------------------------------------------------
 
-DB_FILE = "super_db.db"
+DB_FILE = get_config("DB_FILE", "super_db.db")
+QUICKNODE_RPC = get_config("QUICKNODE_RPC", "https://your-quicknode-endpoint")
+HELIUS_KEY = get_config("HELIUS_KEY", "xxxxxxxxxx")
+BITQUERY_KEY = get_config("BITQUERY_KEY", "xxxxxxxxxx")
+YELLOWSTONE_ENDPOINT = get_config("YELLOWSTONE_ENDPOINT", "https://example.com")
 COINGECKO_CRYPTOS = [
     "bonk",
     "wif",
@@ -48,69 +54,172 @@ def _dummy_df(rows: Iterable[dict[str, Any]]) -> pd.DataFrame:
     return pd.DataFrame(list(rows))
 
 
+def init_wallet_db(conn: sqlite3.Connection) -> None:
+    """Create the wallets table if it does not exist."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS wallets (
+            timestamp TEXT,
+            wallet TEXT,
+            token TEXT,
+            inflow REAL,
+            outflow REAL,
+            source TEXT
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_wallet_ts ON wallets (timestamp);")
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Ingestion stubs
 # ---------------------------------------------------------------------------
 
 def ingest_quicknode_wallet_alerts(conn: sqlite3.Connection) -> None:
-    """Placeholder for the QuickNode wallet alerts integration."""
+    """Ingest wallet holders using the QuickNode RPC."""
     logging.info("ingest_quicknode_wallet_alerts called")
-    start = datetime.datetime.strptime(HISTORICAL_START, "%Y-%m-%d")
-    end = datetime.datetime.now()
+    rows: list[dict[str, Any]] = []
     for coin in COINGECKO_CRYPTOS:
-        logging.debug("Fetching QuickNode data for %s from %s to %s", coin, start, end)
-        df = _dummy_df([])
-        if not df.empty:
-            with conn:
-                df.to_sql("wallets", conn, if_exists="append", index=False)
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTokenLargestAccounts",
+            "params": [coin],
+        }
+        try:
+            resp = requests.post(QUICKNODE_RPC, json=payload, timeout=10)
+            resp.raise_for_status()
+            value = resp.json().get("result", {}).get("value", [])
+            for entry in value:
+                rows.append(
+                    {
+                        "timestamp": datetime.datetime.utcnow().isoformat(),
+                        "wallet": entry.get("address"),
+                        "token": coin,
+                        "inflow": float(entry.get("uiAmount", 0)),
+                        "outflow": 0.0,
+                        "source": "quicknode",
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - network failure
+            logging.error("quicknode error: %s", exc)
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_sql("wallets", conn, if_exists="append", index=False)
 
 
 def ingest_helius_wallet(conn: sqlite3.Connection) -> None:
-    """Placeholder for the Helius wallet ingestion."""
+    """Ingest basic wallet transactions via the Helius API."""
     logging.info("ingest_helius_wallet called")
-    start = datetime.datetime.strptime(HISTORICAL_START, "%Y-%m-%d")
-    end = datetime.datetime.now()
-    for coin in COINGECKO_CRYPTOS:
-        logging.debug("Fetching Helius data for %s from %s to %s", coin, start, end)
-        df = _dummy_df([])
-        if not df.empty:
-            with conn:
-                df.to_sql("wallets", conn, if_exists="append", index=False)
+    rows: list[dict[str, Any]] = []
+    wallet = "11111111111111111111111111111111"
+    url = f"https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={HELIUS_KEY}&limit=10"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        for tx in data:
+            rows.append(
+                {
+                    "timestamp": tx.get("timestamp", datetime.datetime.utcnow().isoformat()),
+                    "wallet": wallet,
+                    "token": tx.get("token", ""),
+                    "inflow": float(tx.get("amount", 0)),
+                    "outflow": 0.0,
+                    "source": "helius",
+                }
+            )
+    except Exception as exc:  # pragma: no cover - network failure
+        logging.error("helius error: %s", exc)
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_sql("wallets", conn, if_exists="append", index=False)
 
 
 def ingest_bitquery_transfers(conn: sqlite3.Connection) -> None:
-    """Placeholder for the Bitquery transfers ingestion."""
+    """Ingest recent transfers from the Bitquery GraphQL API."""
     logging.info("ingest_bitquery_transfers called")
-    start = datetime.datetime.strptime(HISTORICAL_START, "%Y-%m-%d")
-    end = datetime.datetime.now()
-    for coin in COINGECKO_CRYPTOS:
-        logging.debug("Fetching Bitquery data for %s from %s to %s", coin, start, end)
-        df = _dummy_df([])
-        if not df.empty:
-            with conn:
-                df.to_sql("wallets", conn, if_exists="append", index=False)
+    query = """
+    query { solana { transfers(limit: 10) { block { timestamp { iso8601 } } senderAddress receiverAddress amount } } }
+    """
+    headers = {"X-API-KEY": BITQUERY_KEY}
+    try:
+        resp = requests.post("https://graphql.bitquery.io", json={"query": query}, headers=headers, timeout=10)
+        resp.raise_for_status()
+        transfers = resp.json().get("data", {}).get("solana", {}).get("transfers", [])
+    except Exception as exc:  # pragma: no cover - network failure
+        logging.error("bitquery error: %s", exc)
+        transfers = []
+
+    rows = [
+        {
+            "timestamp": t["block"]["timestamp"]["iso8601"],
+            "wallet": t["receiverAddress"],
+            "token": "sol",
+            "inflow": float(t.get("amount", 0)),
+            "outflow": 0.0,
+            "source": "bitquery",
+        }
+        for t in transfers
+    ]
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_sql("wallets", conn, if_exists="append", index=False)
 
 
 def ingest_solana_wallet_scanner(conn: sqlite3.Connection) -> None:
-    """Placeholder for the solana-wallet-scanner integration."""
+    """Ingest wallet data from the solana-wallet-scanner project."""
     logging.info("ingest_solana_wallet_scanner called")
-    for coin in COINGECKO_CRYPTOS:
-        logging.debug("Scanning wallets for %s", coin)
-        df = _dummy_df([])
-        if not df.empty:
-            with conn:
-                df.to_sql("wallets", conn, if_exists="append", index=False)
+    url = "https://raw.githubusercontent.com/0xkaito/solana-wallet-scanner/main/sample.json"
+    rows: list[dict[str, Any]] = []
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        for tx in data.get("transactions", []):
+            rows.append(
+                {
+                    "timestamp": tx.get("timestamp", datetime.datetime.utcnow().isoformat()),
+                    "wallet": tx.get("wallet"),
+                    "token": tx.get("token", ""),
+                    "inflow": float(tx.get("amount", 0)),
+                    "outflow": 0.0,
+                    "source": "scanner",
+                }
+            )
+    except Exception as exc:  # pragma: no cover - network failure
+        logging.error("wallet scanner error: %s", exc)
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_sql("wallets", conn, if_exists="append", index=False)
 
 
 def ingest_yellowstone_geyser(conn: sqlite3.Connection) -> None:
-    """Placeholder for the Yellowstone Geyser gRPC ingestion."""
+    """Fetch sample liquidity events from a Yellowstone Geyser endpoint."""
     logging.info("ingest_yellowstone_geyser called")
-    for coin in COINGECKO_CRYPTOS:
-        logging.debug("Fetching geyser data for %s", coin)
-        df = _dummy_df([])
-        if not df.empty:
-            with conn:
-                df.to_sql("wallets", conn, if_exists="append", index=False)
+    rows: list[dict[str, Any]] = []
+    try:
+        resp = requests.get(YELLOWSTONE_ENDPOINT, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        for evt in data.get("events", []):
+            rows.append(
+                {
+                    "timestamp": evt.get("timestamp", datetime.datetime.utcnow().isoformat()),
+                    "wallet": evt.get("wallet"),
+                    "token": evt.get("token", ""),
+                    "inflow": float(evt.get("amount", 0)),
+                    "outflow": 0.0,
+                    "source": "geyser",
+                }
+            )
+    except Exception as exc:  # pragma: no cover - network failure
+        logging.error("yellowstone error: %s", exc)
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df.to_sql("wallets", conn, if_exists="append", index=False)
 
 
 # ---------------------------------------------------------------------------
@@ -118,9 +227,15 @@ def ingest_yellowstone_geyser(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------------
 
 def analyze_patterns(conn: sqlite3.Connection) -> None:
-    """Analyze wallet events and correlate with price data."""
+    """Compute simple inflow/outflow aggregates."""
     logging.info("analyze_patterns called")
-    # Real implementation would perform clustering and causality analysis
+    df = pd.read_sql_query(
+        "SELECT wallet, SUM(inflow) as total_inflow, SUM(outflow) as total_outflow FROM wallets GROUP BY wallet",
+        conn,
+    )
+    if not df.empty:
+        df["net_flow"] = df["total_inflow"] - df["total_outflow"]
+        df.to_sql("wallet_analysis", conn, if_exists="replace", index=False)
 
 
 class WalletStrategy:
@@ -135,15 +250,30 @@ class WalletStrategy:
 
 
 def backtest_strategies(conn: sqlite3.Connection) -> None:
-    """Placeholder for running strategy backtests."""
+    """Run a trivial backtest using wallet net flows as a price proxy."""
     logging.info("backtest_strategies called")
+    df = pd.read_sql_query(
+        "SELECT substr(timestamp, 1, 10) as day, SUM(inflow - outflow) as net FROM wallets GROUP BY day ORDER BY day",
+        conn,
+        parse_dates=["day"],
+    )
+    if df.empty:
+        return
+    df["close"] = df["net"].cumsum()
+    from backtesting_engine import BacktestingEngine
+
+    engine = BacktestingEngine(initial_capital=1000)
+    result = engine.run_backtest(WalletStrategy(), df[["close"]])
+    logging.info("backtest result: %s", result)
 
 
 def export_for_finetuning(conn: sqlite3.Connection, output_file: str = "llm_data.jsonl") -> None:
-    """Export aggregated data for LLM fine tuning."""
+    """Export wallet events as JSON lines for fine tuning."""
     logging.info("export_for_finetuning called, output=%s", output_file)
+    df = pd.read_sql_query("SELECT * FROM wallets", conn)
     with open(output_file, "w", encoding="utf-8") as f:
-        pass  # Real implementation would write JSON lines
+        for _, row in df.iterrows():
+            f.write(json.dumps(row.to_dict()) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +282,7 @@ def export_for_finetuning(conn: sqlite3.Connection, output_file: str = "llm_data
 
 def main() -> None:
     conn = sqlite3.connect(DB_FILE)
+    init_wallet_db(conn)
     ingest_funcs = [
         ingest_quicknode_wallet_alerts,
         ingest_helius_wallet,
