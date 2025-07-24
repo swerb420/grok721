@@ -13,13 +13,19 @@ import sqlite3
 import threading
 import random
 import logging
+import json
 import requests
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from apify_client import ApifyClient
 from pandas_gbq import read_gbq  # For BigQuery; pip install pandas-gbq
+from pipelines.dune import execute_dune_query, store_dune_rows
 from telegram import Bot
 from telegram.ext import Updater, CallbackQueryHandler, CommandHandler
+try:  # optional dependency for tests
+    import yfinance as yf  # type: ignore
+except Exception:
+    yf = None  # type: ignore
 from transformers import (
     pipeline,
     AutoTokenizer,
@@ -379,86 +385,429 @@ def ingest_free_datasets(conn):
 # Similar detailed functions would go here
 
 
-"""
-
 def ingest_wallets(conn):
-    pass
+    """Fetch wallet-related data from Dune Analytics."""
+    query_ids = [
+        DUNE_AIRDROPS_WALLETS_QUERY_ID,
+        DUNE_SMART_WALLET_FINDER_QUERY_ID,
+        DUNE_WALLET_BALANCES_QUERY_ID,
+    ]
+    for qid in query_ids:
+        rows = retry_func(
+            execute_dune_query,
+            qid,
+            DUNE_API_KEY,
+            max_poll=MAX_RETRIES,
+        )
+        with db_lock:
+            cur = conn.cursor()
+            ts = datetime.datetime.utcnow().isoformat()
+            for row in rows:
+                cur.execute(
+                    "INSERT OR IGNORE INTO dune_results (query_id, data, ingested_at) VALUES (?, ?, ?)",
+                    (qid, json.dumps(row), ts),
+                )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_perps(conn):
-    pass
+    """Store perpetual futures stats from Dune."""
+    query_ids = [DUNE_HYPERLIQUID_STATS_QUERY_ID, DUNE_PERPS_HYPERLIQUID_QUERY_ID]
+    for qid in query_ids:
+        rows = retry_func(
+            execute_dune_query,
+            qid,
+            DUNE_API_KEY,
+            max_poll=MAX_RETRIES,
+        )
+        store_dune_rows(conn, qid, rows)
+        logging.info("Ingested %s rows for %s", len(rows), qid)
+        time.sleep(1)
 
 
 def ingest_order_books(conn):
-    pass
+    """Fetch order book snapshots from Dune."""
+    rows = retry_func(
+        execute_dune_query,
+        DUNE_HYPERLIQUID_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=MAX_RETRIES,
+    )
+    store_dune_rows(conn, DUNE_HYPERLIQUID_QUERY_ID, rows)
+    logging.info("Ingested %s order book rows", len(rows))
 
 
 def ingest_gas_prices(conn):
-    pass
+    """Fetch gas price information from Etherscan and Dune."""
+    cur = conn.cursor()
+
+    url = f"https://api.etherscan.io/api?module=gastracker&action=gaschart&apikey={ETHERSCAN_KEY}"
+    resp = retry_func(requests.get, url)
+    resp.raise_for_status()
+    data = resp.json().get("result", [])
+    for entry in data:
+        ts = datetime.datetime.fromtimestamp(int(entry.get("unixTimeStamp", 0))).isoformat()
+        cur.execute(
+            "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
+            (ts, float(entry.get("gasPrice", 0)), "etherscan_historical"),
+        )
+    conn.commit()
+    logging.info("Stored %s historical gas rows", len(data))
+
+    url = f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_KEY}"
+    resp = retry_func(requests.get, url)
+    resp.raise_for_status()
+    result = resp.json().get("result", {})
+    ts = datetime.datetime.utcnow().isoformat()
+    cur.execute(
+        "INSERT OR REPLACE INTO gas_prices (timestamp, fast_gas, average_gas, slow_gas, base_fee, source) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            ts,
+            float(result.get("FastGasPrice", 0)),
+            float(result.get("ProposeGasPrice", 0)),
+            float(result.get("SafeGasPrice", 0)),
+            float(result.get("LastBlock", 0)),
+            "etherscan_current",
+        ),
+    )
+    conn.commit()
+
+    rows = retry_func(
+        execute_dune_query,
+        DUNE_GAS_PRICES_QUERY_ID,
+        DUNE_API_KEY,
+        max_poll=MAX_RETRIES,
+    )
+    for row in rows:
+        cur.execute(
+            "INSERT OR IGNORE INTO gas_prices (timestamp, average_gas, source) VALUES (?, ?, ?)",
+            (row.get("day"), row.get("avg_gas_gwei", 0), "dune"),
+        )
+    conn.commit()
+    logging.info("Stored %s gas price rows from Dune", len(rows))
 
 
 def ingest_alpha_vantage_economic(conn):
-    pass
+    """Store economic series from Alpha Vantage."""
+    for series in ALPHA_ECON_SERIES:
+        url = (
+            f"https://www.alphavantage.co/query?function={series}&apikey={ALPHA_VANTAGE_KEY}&datatype=json"
+        )
+        resp = retry_func(requests.get, url)
+        data = resp.json().get("data", [])
+        with db_lock:
+            cur = conn.cursor()
+            for entry in data:
+                cur.execute(
+                    "INSERT OR IGNORE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                    (series, entry.get("date"), float(entry.get("value", 0)), "alpha_vantage"),
+                )
+            conn.commit()
+        time.sleep(12)
 
 
 def ingest_coingecko_crypto(conn):
-    pass
+    """Ingest cryptocurrency prices from CoinGecko."""
+    for coin in COINGECKO_CRYPTOS:
+        url = (
+            f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart?vs_currency=usd&days=1"
+        )
+        resp = retry_func(requests.get, url)
+        data = resp.json().get("prices", [])
+        with db_lock:
+            cur = conn.cursor()
+            for ts, price in data:
+                date = datetime.datetime.fromtimestamp(ts / 1000).isoformat()
+                cur.execute(
+                    "INSERT OR REPLACE INTO prices (ticker, date, close, type) VALUES (?, ?, ?, ?)",
+                    (coin.upper(), date, float(price), "coingecko"),
+                )
+            conn.commit()
+        time.sleep(2)
 
 
 def ingest_fred_economic(conn):
-    pass
+    """Download data series from the FRED API."""
+    for series in FRED_SERIES:
+        url = (
+            f"https://api.stlouisfed.org/fred/series/observations?series_id={series}&api_key={FRED_API_KEY}&file_type=json"
+        )
+        resp = retry_func(requests.get, url)
+        observations = resp.json().get("observations", [])
+        with db_lock:
+            cur = conn.cursor()
+            for obs in observations:
+                cur.execute(
+                    "INSERT OR IGNORE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                    (series, obs.get("date"), float(obs.get("value", 0) or 0), "fred"),
+                )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_newsapi(conn):
-    pass
+    """Store articles from NewsAPI as generic tweets."""
+    keywords = ["crypto", "bitcoin"]
+    for kw in keywords:
+        url = (
+            f"https://newsapi.org/v2/everything?q={kw}&from={HISTORICAL_START}&sortBy=publishedAt&apiKey={NEWSAPI_KEY}"
+        )
+        resp = retry_func(requests.get, url)
+        articles = resp.json().get("articles", [])
+        with db_lock:
+            cur = conn.cursor()
+            for art in articles:
+                text = f"{art.get('title', '')} {art.get('description', '')}"
+                cur.execute(
+                    "INSERT OR IGNORE INTO tweets (id, created_at, text, source) VALUES (?, ?, ?, ?)",
+                    (art.get("url"), art.get("publishedAt"), text, "newsapi"),
+                )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_quandl(conn):
-    pass
+    """Ingest datasets from Quandl."""
+    datasets = ["FRED/GDP"]
+    for ds in datasets:
+        url = f"https://data.nasdaq.com/api/v3/datasets/{ds}.json?api_key={QUANDL_KEY}"
+        resp = retry_func(requests.get, url)
+        data = resp.json().get("dataset", {}).get("data", [])
+        with db_lock:
+            cur = conn.cursor()
+            for row in data:
+                cur.execute(
+                    "INSERT OR IGNORE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                    (ds, row[0], float(row[1]) if len(row) > 1 else 0, "quandl"),
+                )
+            conn.commit()
+        time.sleep(2)
 
 
 def ingest_world_bank(conn):
-    pass
+    """Ingest indicators from the World Bank."""
+    indicators = ["NY.GDP.MKTP.CD"]
+    for ind in indicators:
+        url = (
+            f"https://api.worldbank.org/v2/country/all/indicator/{ind}?format=json&per_page=1000"
+        )
+        resp = retry_func(requests.get, url)
+        data = resp.json()[1] if len(resp.json()) > 1 else []
+        with db_lock:
+            cur = conn.cursor()
+            for entry in data:
+                if entry.get("value") is None:
+                    continue
+                cur.execute(
+                    "INSERT OR IGNORE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                    (ind, entry.get("date"), float(entry.get("value", 0)), "world_bank"),
+                )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_yahoo_finance(conn):
-    pass
+    """Fetch recent price history from Yahoo Finance."""
+    if yf is None:
+        logging.warning("yfinance not available")
+        return
+    for ticker in YFINANCE_TICKERS:
+        try:
+            hist = yf.Ticker(ticker).history(period="1mo")
+        except Exception as exc:
+            logging.warning("Yahoo request failed for %s: %s", ticker, exc)
+            continue
+        with db_lock:
+            cur = conn.cursor()
+            for idx, row in hist.iterrows():
+                cur.execute(
+                    "INSERT OR REPLACE INTO prices (ticker, date, close, volume, type) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        ticker,
+                        idx.isoformat(),
+                        float(row.get("Close", 0)),
+                        float(row.get("Volume", 0)),
+                        "yahoo",
+                    ),
+                )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_cryptocompare(conn):
-    pass
+    """Pull data from the CryptoCompare API."""
+    for coin in CRYPTOCOMPARE_COINS:
+        url = (
+            f"https://min-api.cryptocompare.com/data/v2/histoday?fsym={coin}&tsym=USD&limit=30"
+        )
+        resp = retry_func(requests.get, url)
+        data = resp.json().get("Data", {}).get("Data", [])
+        with db_lock:
+            cur = conn.cursor()
+            for row in data:
+                date = datetime.datetime.fromtimestamp(row.get("time", 0)).isoformat()
+                cur.execute(
+                    "INSERT OR REPLACE INTO prices (ticker, date, close, volume, type) VALUES (?, ?, ?, ?, ?)",
+                    (coin, date, row.get("close"), row.get("volumeto"), "cryptocompare"),
+                )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_openexchangerates(conn):
-    pass
+    """Fetch forex rates from OpenExchangeRates."""
+    url = f"https://openexchangerates.org/api/latest.json?app_id={OPENEXCHANGE_KEY}"
+    resp = retry_func(requests.get, url)
+    data = resp.json()
+    timestamp = datetime.datetime.utcfromtimestamp(data.get("timestamp", int(time.time()))).isoformat()
+    rates = data.get("rates", {})
+    with db_lock:
+        cur = conn.cursor()
+        for cur_code, value in rates.items():
+            cur.execute(
+                "INSERT OR REPLACE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                (cur_code, timestamp, float(value), "openexchangerates"),
+            )
+        conn.commit()
 
 
 def ingest_investing_scrape(conn):
-    pass
+    """Download simple CSV data from stooq as a stand in for Investing.com."""
+    url = "https://stooq.com/q/d/l/?s=spx&i=d"
+    resp = retry_func(requests.get, url)
+    lines = resp.text.splitlines()
+    with db_lock:
+        cur = conn.cursor()
+        for line in lines[1:5]:
+            parts = line.split(",")
+            if len(parts) < 5:
+                continue
+            cur.execute(
+                "INSERT OR REPLACE INTO prices (ticker, date, close, type) VALUES (?, ?, ?, ?)",
+                ("SPX", parts[0], float(parts[4]), "investing"),
+            )
+        conn.commit()
 
 
 def ingest_census_bureau(conn):
-    pass
+    """Fetch simple US census data."""
+    url = "https://api.census.gov/data/2020/dec/pl?get=NAME,P1_001N&for=state:*"
+    resp = retry_func(requests.get, url)
+    rows = resp.json()[1:]
+    with db_lock:
+        cur = conn.cursor()
+        for name, value, _ in rows:
+            cur.execute(
+                "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, country) VALUES (?, ?, ?, ?, ?)",
+                ("POP", name, float(value), "census", "USA"),
+            )
+        conn.commit()
 
 
 def ingest_openstreetmap(conn):
-    pass
+    """Store basic location info from OpenStreetMap."""
+    url = "https://nominatim.openstreetmap.org/search?q=New+York&format=json"
+    resp = retry_func(requests.get, url, headers={"User-Agent": "grok721"})
+    data = resp.json()
+    with db_lock:
+        cur = conn.cursor()
+        for item in data[:1]:
+            cur.execute(
+                "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, country) VALUES (?, ?, ?, ?, ?)",
+                ("OSM_LAT", datetime.datetime.utcnow().isoformat(), float(item.get("lat", 0)), "openstreetmap", "USA"),
+            )
+        conn.commit()
 
 
 def ingest_sec_edgar(conn):
-    pass
+    """Fetch filing counts from the SEC EDGAR API."""
+    for company in SEC_COMPANIES:
+        url = (
+            f"https://data.sec.gov/submissions/CIK0000320193.json"  # Example CIK
+        )
+        resp = retry_func(requests.get, url, headers={"User-Agent": "grok721"})
+        data = resp.json().get("filings", {}).get("recent", {})
+        count = len(data.get("accessionNumber", []))
+        with db_lock:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT OR IGNORE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                ("SEC_FILINGS", datetime.datetime.utcnow().isoformat(), float(count), "sec"),
+            )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_noaa_climate(conn):
-    pass
+    """Get basic climate observations from NOAA."""
+    for loc, lat, lon in NOAA_LOCATIONS:
+        url = f"https://api.weather.gov/points/{lat},{lon}"
+        resp = retry_func(requests.get, url, headers={"User-Agent": "grok721"})
+        if resp.status_code >= 400:
+            continue
+        station_url = resp.json().get("properties", {}).get("observationStations")
+        if not station_url:
+            continue
+        st_resp = retry_func(requests.get, station_url, headers={"User-Agent": "grok721"})
+        stations = st_resp.json().get("features", [])
+        if not stations:
+            continue
+        station = stations[0]["id"]
+        obs = retry_func(requests.get, station + "/observations", headers={"User-Agent": "grok721"})
+        val = obs.json().get("features", [{}])[0].get("properties", {}).get("temperature", {}).get("value")
+        with db_lock:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, country) VALUES (?, ?, ?, ?, ?)",
+                ("TEMP", datetime.datetime.utcnow().isoformat(), float(val or 0), "noaa", loc),
+            )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_github_repos(conn):
-    pass
+    """Record star counts for selected GitHub repos."""
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+    for repo in GITHUB_REPOS:
+        url = f"https://api.github.com/repos/{repo}"
+        resp = retry_func(requests.get, url, headers=headers)
+        stars = resp.json().get("stargazers_count", 0)
+        with db_lock:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT OR IGNORE INTO economic_indicators (series, date, value, source) VALUES (?, ?, ?, ?)",
+                (repo, datetime.datetime.utcnow().isoformat(), float(stars), "github"),
+            )
+            conn.commit()
+        time.sleep(1)
 
 
 def ingest_imf(conn):
-    pass
+    """Fetch a simple data point from the IMF API."""
+    for country in IMF_COUNTRIES:
+        url = (
+            f"https://dataservices.imf.org/REST/SDMX_JSON.svc/CompactData/IFS/M.{country}.PCPI_IX?startPeriod=2022&endPeriod=2022"
+        )
+        resp = retry_func(requests.get, url)
+        data = (
+            resp.json()
+            .get("CompactData", {})
+            .get("DataSet", {})
+            .get("Series", {})
+            .get("Obs", [])
+        )
+        for obs in data:
+            date = obs.get("@TIME_PERIOD")
+            value = obs.get("@OBS_VALUE")
+            with db_lock:
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT OR IGNORE INTO economic_indicators (series, date, value, source, country) VALUES (?, ?, ?, ?, ?)",
+                    ("CPI", date, float(value or 0), "imf", country),
+                )
+                conn.commit()
+        time.sleep(1)
 
 
 def fetch_tweets(client, conn, bot):
@@ -487,7 +836,7 @@ def export_for_finetuning(conn):
 
 def backtest_strategies(conn):
     pass
-"""
+
 
 
 
@@ -495,7 +844,6 @@ def retry_func(func, *args, **kwargs):
     return func(*args, **kwargs)
 
 
-"""
 
 def approval_handler(update, context):
     pass
@@ -511,7 +859,6 @@ def remove_account(update, context):
 
 def list_accounts(update, context):
     pass
-"""
 
 
 # main with expanded concurrency

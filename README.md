@@ -6,7 +6,7 @@ This repository contains several example data pipeline scripts. `main.py` provid
 - `main.py` – basic ingestion example.
 - `async_pipeline.py` – asynchronous variant using `aiohttp`.
 - `extra_pipeline.py` – **experimental** expanded ingestion example.
-- `advanced_pipeline.py` – **experimental** pipeline with many placeholders.
+- `advanced_pipeline.py` – **experimental** pipeline with many placeholders. It now includes basic ingestion helpers for wallets, perps, order books, gas prices and several economic APIs.
 - `mega_pipeline.py` – **experimental** build with numerous sources.
 - `ultimate_pipeline.py` – **experimental** maximal demonstration.
 - `untrimmed_pipeline.py` – **experimental** raw variant with the full import stack.
@@ -92,6 +92,9 @@ DUNE_AIRDROPS_WALLETS_QUERY_ID
 DUNE_SMART_WALLET_FINDER_QUERY_ID
 DUNE_WALLET_BALANCES_QUERY_ID
 ```
+Additional API keys such as `FRED_API_KEY`, `NEWSAPI_KEY`, `OPENEXCHANGE_KEY`,
+`GITHUB_TOKEN` and `QUANDL_KEY` are required when running the advanced
+pipeline.
 The `HISTORICAL_START` variable controls how far back tweets are fetched and
 defaults to `2017-01-01`.
 Refer to `.env.example` for the complete list of supported variables.
