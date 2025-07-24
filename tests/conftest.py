@@ -108,3 +108,10 @@ def options_module(stub_optional_dependencies):
     if 'pipelines.options' in sys.modules:
         return importlib.reload(sys.modules['pipelines.options'])
     return importlib.import_module('pipelines.options')
+
+
+@pytest.fixture
+def wallet_module(stub_optional_dependencies):
+    if 'wallet_detection_pipeline' in sys.modules:
+        return importlib.reload(sys.modules['wallet_detection_pipeline'])
+    return importlib.import_module('wallet_detection_pipeline')
