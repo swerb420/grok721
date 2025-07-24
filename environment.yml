@@ -1,0 +1,11 @@
+name: grok721
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - apscheduler
+  - python-telegram-bot
+  - pip
+  - pip:
+      - apify-client
+      - transformers
