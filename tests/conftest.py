@@ -17,7 +17,13 @@ def stub_optional_dependencies():
     if 'telegram' not in sys.modules:
         telegram = types.ModuleType('telegram')
         telegram.Bot = lambda token: None
+        ext = types.ModuleType('telegram.ext')
+        ext.Updater = lambda *a, **k: None
+        ext.CallbackQueryHandler = lambda *a, **k: None
+        ext.CommandHandler = lambda *a, **k: None
+        telegram.ext = ext
         sys.modules['telegram'] = telegram
+        sys.modules['telegram.ext'] = ext
 
     # apscheduler background scheduler
     if 'apscheduler.schedulers.background' not in sys.modules:
@@ -52,6 +58,29 @@ def stub_optional_dependencies():
         requests.get = lambda *a, **k: _resp()
         requests.post = lambda *a, **k: _resp()
         sys.modules['requests'] = requests
+
+    # sklearn
+    if 'sklearn' not in sys.modules:
+        skl = types.ModuleType('sklearn')
+        decomposition = types.ModuleType('sklearn.decomposition')
+        class Dummy:
+            def __init__(self, *a, **k):
+                pass
+        decomposition.LatentDirichletAllocation = Dummy
+        feature = types.ModuleType('sklearn.feature_extraction.text')
+        feature.CountVectorizer = Dummy
+        skl.decomposition = decomposition
+        skl.feature_extraction = types.SimpleNamespace(text=feature)
+        sys.modules['sklearn'] = skl
+        sys.modules['sklearn.decomposition'] = decomposition
+        sys.modules['sklearn.feature_extraction'] = types.ModuleType('sklearn.feature_extraction')
+        sys.modules['sklearn.feature_extraction.text'] = feature
+
+    # pandas_gbq
+    if 'pandas_gbq' not in sys.modules:
+        pandas_gbq = types.ModuleType('pandas_gbq')
+        pandas_gbq.read_gbq = lambda *a, **k: []
+        sys.modules['pandas_gbq'] = pandas_gbq
 
     # psutil
     if 'psutil' not in sys.modules:
@@ -108,3 +137,10 @@ def options_module(stub_optional_dependencies):
     if 'pipelines.options' in sys.modules:
         return importlib.reload(sys.modules['pipelines.options'])
     return importlib.import_module('pipelines.options')
+
+
+@pytest.fixture
+def advanced_module(stub_optional_dependencies):
+    if 'advanced_pipeline' in sys.modules:
+        return importlib.reload(sys.modules['advanced_pipeline'])
+    return importlib.import_module('advanced_pipeline')
